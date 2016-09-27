@@ -7,6 +7,7 @@ var httpServer = http.createServer();
 var wsServer = new WebSocketServer({server: httpServer})
 httpServer.on('request', app);
 
+console.log('inside websocket')
 
 var clients = {}
 
@@ -27,3 +28,6 @@ wsServer.on("connection", function(websocket) {
         console.log("websocket connection closed ::", Object.keys(clients));            
     });
 });
+
+exports = module.exports = httpServer;
+

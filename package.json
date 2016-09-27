@@ -1,0 +1,19 @@
+{
+  "name": "chirpee",
+  "version": "1.0.0",
+  "description": "chirpee server",
+  "main": "app.js",
+  "dependencies": {
+    "node-gcm-ccs": "https://github.com/jacobp100/node-gcm-ccs.git",
+    "express": "*",
+    "body-parser": "*",
+    "ws": "*",
+    "shortid": "*"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "winster",
+  "license": "ISC"
+}

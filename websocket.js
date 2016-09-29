@@ -2,6 +2,7 @@ var http = require('http'),
 	WebSocketServer = require("ws").Server,
     shortid = require('shortid'),
     account = require('./account'),
+    jwt = require('jsonwebtoken'),
     secret = require('./secret.json');
 
 
@@ -35,7 +36,7 @@ var clients = {}
 
 wsServer.on("connection", function(websocket) {
     var user = websocket.upgradeReq.user
-    console.log(user)
+    console.log(user.mobile)
     var connection_id = shortid.generate();
     clients[connection_id] = websocket;
     websocket.connection_id = connection_id;

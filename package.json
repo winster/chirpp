@@ -8,7 +8,14 @@
     "express": "*",
     "body-parser": "*",
     "ws": "*",
-    "shortid": "*"
+    "shortid": "*",
+    "q":"*",
+    "speakeasy":"*",
+    "sequelize":"*",
+    "nodemailer-smtp-transport":"*",
+    "pg":"*",
+    "express-jwt":"*",
+    "jsonwebtoken":"*"
   },
   "devDependencies": {},
   "scripts": {

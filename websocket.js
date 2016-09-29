@@ -1,10 +1,32 @@
 var http = require('http'),
 	WebSocketServer = require("ws").Server,
-    shortid = require('shortid');
+    shortid = require('shortid'),
+    account = require('./account'),
+    secret = require('./secret.json');
+
 
 var app = require('./app')
 var httpServer = http.createServer();
-var wsServer = new WebSocketServer({server: httpServer})
+var wsServer = new WebSocketServer({
+    server: httpServer,
+    verifyClient: function (info, cb) {
+        var token = info.req.headers.token
+        console.log('inside verifyClient')
+        if (!token)
+            cb(false, 401, 'Unauthorized')
+        else {
+            jwt.verify(token, secret.key, function (err, decoded) {
+                if (err) {
+                    cb(false, 401, 'Unauthorized')
+                } else {
+                    info.req.user = decoded //[1]
+                    cb(true)
+                }
+            })
+
+        }
+    }
+});
 httpServer.on('request', app);
 
 console.log('inside websocket')
@@ -12,6 +34,8 @@ console.log('inside websocket')
 var clients = {}
 
 wsServer.on("connection", function(websocket) {
+    var user = websocket.upgradeReq.user
+    console.log(user)
     var connection_id = shortid.generate();
     clients[connection_id] = websocket;
     websocket.connection_id = connection_id;
@@ -20,8 +44,10 @@ wsServer.on("connection", function(websocket) {
     websocket.send(JSON.stringify(result), function() {  })
     websocket.on('message', function incoming(message) {
         console.log('received: %s', message);
+        console.log(this);
         if(message=="ping")
-            return;        	
+            return;
+
     });
     websocket.on("close", function() {
         delete clients[websocket.connection_id];

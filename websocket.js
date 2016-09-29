@@ -36,19 +36,21 @@ var clients = {}
 
 wsServer.on("connection", function(websocket) {
     var user = websocket.upgradeReq.user
-    console.log(user.mobile)
-    var connection_id = shortid.generate();
-    clients[connection_id] = websocket;
-    websocket.connection_id = connection_id;
+    var connectionId = shortid.generate();
+    clients[connectionId] = websocket;
+    websocket.connectionId = connectionId;
+    websocket.accountId = user.mobile;
     console.log("websocket connection open %s", connection_id);
-    var result = {'connection_id': connection_id}
+    //var result = {'connection_id': connection_id}
+    var result = {'result': 'success'};
     websocket.send(JSON.stringify(result), function() {  })
     websocket.on('message', function incoming(message) {
         console.log('received: %s', message);
-        console.log(this);
-        if(message=="ping")
-            return;
-
+        if(message=="ping") {
+            account.ping(this.accountId);    
+        } else {
+            
+        }
     });
     websocket.on("close", function() {
         delete clients[websocket.connection_id];

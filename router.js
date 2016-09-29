@@ -103,4 +103,3 @@ app.post('/socketId', function(req, res) {
     .then(function(response){res.json(response)})
     .catch(function(error){res.json(error)});
 });    
-

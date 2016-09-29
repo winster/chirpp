@@ -203,8 +203,31 @@ Accounts.prototype.ping = function(mobile){
         d.resolve({'result':'success'});
     }).catch(function(){
         debug('Error Account.update', 'Account:UpdateSocketId');
-        d.reject({'error':'Account.update','errorCode':'ACT110'});
+        d.reject({'error':'Account.update','errorCode':'ACT111'});
     });         
+    return d.promise;
+};
+
+Accounts.prototype.isOnline = function(mobile){
+    debug('Account:IsOnline: %s:', mobile);
+    var d = Q.defer();
+    debug('Before Account.findOne', 'Account:IsOnline');
+    Account.findOne({ where: {mobile: mobile} }).then(function(account) {
+        if(account) {
+            debug('account exists', 'Account:Get');
+            debug('Date.now() %s', Date.now());
+            debug('Date.parse(%s) %s', account.updatedAt, Date.parse(account.updatedAt));
+            debug('Difference %s', Date.now()-Date.parse(account.updatedAt));
+            if((Date.now()-Date.parse(account.updatedAt)) < 30000){  //30 seconds
+                d.resolve(true);        
+            } else {
+                d.resolve(false);        
+            }
+        } else {
+            debug('Account:IsOnline:account not exists');
+            d.reject({'error':'Account not exists','errorCode':'ACT112'});      
+        }
+    })
     return d.promise;
 };
 

@@ -50,7 +50,7 @@ wsServer.on("connection", function(websocket) {
         if(message=="ping") {
             account.ping(this.accountId);    
         } else {
-            
+            account.isOnline(this.accountId);
         }
     });
     websocket.on("close", function() {

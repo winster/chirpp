@@ -57,4 +57,21 @@ Products.prototype.getProducts = function(){
     return d.promise;    
 };
 
+Products.prototype.getOrFail = function(productId){
+    debug('Products:GetOrFail:');
+    var d = Q.defer();
+    Product.findOne().then(function(product) {
+        if(product) {
+            debug('product exists', 'Products:GetOrFail');
+            d.resolve(product);
+        } else {
+            debug('product not exists', 'Products:GetOrFail');
+            d.reject({'error':'Product does not exist','errorCode':'PRD102'});
+        }
+    }).catch(function(){
+        d.reject({'error':'Products.GetOrFail','errorCode':'PRD103'});
+    });
+    return d.promise;    
+};
+
 exports = module.exports = new Products();

@@ -1,6 +1,7 @@
 "use strict";
 var Q = require("q"),
-    Sequelize = require('sequelize');
+    Sequelize = require('sequelize'),
+    Product = require('./product'),
     database = require('./database');
 
 const debug = require('debug')('chirpp');
@@ -14,7 +15,7 @@ var AccountProduct = database.define('account_product', {
         type: Sequelize.STRING,
         primaryKey: true
     },
-    role: {
+    role: {//0 for subscriber, 1 for provider, 2 for colleague. Same as contactRole in AccountProductContact
         type: Sequelize.STRING
     }
 }, {
@@ -28,20 +29,19 @@ var AccountProducts = function(){};
 AccountProducts.prototype.addProduct = function(product){
     debug('AccountProducts:AddProduct:');
     var d = Q.defer();
-    AccountProduct.findOne({ where: {productId: product.productId, accountId:product.accountId} }).then(function(accountProductModel) {
-        if(!accountProductModel) {
-            AccountProduct.create(product).then(function() {
+    Product.getOrFail(product.productId)
+    .then(function(){
+        AccountProduct.findOrCreate({ where: {productId: product.productId, accountId:product.accountId}, defaults: product })
+        .spread(function(product, created) {
+            if(created) {
                 debug('AccountProducts:AddProduct: successfully added product with id %s ', product.productId);
                 d.resolve();            
-            }).catch(function(err){
-                debug('AccountProducts:AddProduct: failed to add product with id %s ', err);
-                d.reject();           
-            });
-        } else {
-            debug('AccountProducts:AddProduct: product already added');
-            d.resolve();
-        }
-    });
+            } else {
+                debug('AccountProducts:AddProduct: product already added');
+                d.resolve();
+            }
+        }).catch(function(error){d.reject(error)})
+    }).catch(function(error){d.reject(error)})
     
     return d.promise;    
 };
@@ -62,11 +62,26 @@ AccountProducts.prototype.addProducts = function(mobile, products){
         debug('AccountProducts:AddProducts: successfully added all products by skipping existing records');
         d.resolve(mobile);   
     }).catch(function(err){
-        debug('AccountProducts:AddProducts: failed to add all products');
-        d.reject({'error':'AccountProducts.AddProducts','errorCode':'PRD101'});
+        debug('AccountProducts:AddProducts: failed to add all products %s',err);
+        d.reject({'error':'AccountProducts.AddProducts '+err.error,'errorCode':'PRD101'});
     });         
     return d.promise;    
 };
+
+AccountProducts.prototype.getAccountProduct = function(mobile, productId){
+    debug('AccountProducts:GetAccountProduct: %s : %s', mobile, productId);
+    var d = Q.defer();
+    AccountProduct.findOne({ where: { accountId : mobile, productId : productId } })
+    .then(function(product) {
+        debug('AccountProducts:GetAccountProduct: successfully got product with id %s ', product.productId);
+        d.resolve(product);
+    }).catch(function(){
+        debug('AccountProducts:GetAccountProduct: failed to get product with id %s ', productId);
+        d.reject({'error':'AccountProducts.GetAccountProducts :failed to get product','errorCode':'PRD102'});
+    });
+    return d.promise;    
+};
+
 
 AccountProducts.prototype.getAccountProducts = function(mobile){
     debug('AccountProducts:GetAccountProducts: %s', mobile);
@@ -77,8 +92,8 @@ AccountProducts.prototype.getAccountProducts = function(mobile){
         }
         d.resolve({'products' : products});
     }).catch(function(){
-        debug('AccountProducts:addDefaultProduct: failed to add product with id %s ', productId);
-        d.reject({'error':'AccountProducts.GetAccountProducts','errorCode':'PRD102'});
+        debug('AccountProducts:GetAccountProducts: failed to get products');
+        d.reject({'error':'AccountProducts.GetAccountProducts: failed to get products','errorCode':'PRD103'});
     });
     return d.promise;    
 };

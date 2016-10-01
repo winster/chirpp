@@ -1,8 +1,9 @@
 var http = require('http'),
 	WebSocketServer = require("ws").Server,
     shortid = require('shortid'),
-    account = require('./account'),
     jwt = require('jsonwebtoken'),
+    account = require('./account'),
+    //gcm = require("./gcm"),
     secret = require('./secret.json');
 
 const debug = require('debug')('chirpp');
@@ -31,17 +32,15 @@ var wsServer = new WebSocketServer({
 });
 httpServer.on('request', app);
 
-console.log('inside websocket')
-
 var clients = {}
 
 wsServer.on("connection", function(websocket) {
     var user = websocket.upgradeReq.user
-    var connectionId = shortid.generate();
-    clients[connectionId] = websocket;
-    websocket.connectionId = connectionId;
+    var socketId = shortid.generate();
+    clients[socketId] = websocket;
+    websocket.socketId = socketId;
     websocket.accountId = user.mobile;
-    debug("websocket connection open %s", connectionId);
+    debug("websocket connection open %s", socketId);
     //var result = {'connection_id': connection_id}
     var result = {'result': 'success'};
     websocket.send(JSON.stringify(result), function() {  })
@@ -50,11 +49,20 @@ wsServer.on("connection", function(websocket) {
         if(message=="ping") {
             account.ping(this.accountId);    
         } else {
-            account.isOnline(this.accountId);
+            var json = JSON.parse(message);
+            account.isOnline(json.accountId).then(function(response){
+                if(response.isOnline && clients[response.socketId]) {
+                    websocket.send(message, function(){});
+                } else {
+                    /*gcm(response.deviceToken, message, function(error){
+                        //handle gcm error callbacks
+                    });*/
+                }
+            });
         }
     });
     websocket.on("close", function() {
-        delete clients[websocket.connectionId];
+        delete clients[websocket.socketId];
         debug("websocket connection closed ::", Object.keys(clients));            
     });
 });

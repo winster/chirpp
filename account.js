@@ -60,7 +60,7 @@ Accounts.prototype.get = function(mobile){
     Account.findOne({ where: {mobile: mobile} }).then(function(account) {
         if(account) {
             debug('account exists', 'Account:Get');
-            d.resolve(account);        
+            d.resolve({exists:true,mobile:mobile,accessToken:account.accessToken});        
         } else {
             debug('account not exists', 'Account:Get');
             d.resolve({mobile:mobile});        
@@ -75,10 +75,10 @@ Accounts.prototype.getOrFail = function(mobile){
     Account.findOne({ where: {mobile: mobile} }).then(function(account) {
         if(account) {
             debug('account exists', 'Account:GetOrFail');
-            d.resolve(account, options);        
+            d.resolve({exists:true,mobile:mobile,accessToken:account.accessToken});        
         } else {
             debug('account not exists', 'Account:GetOrFail');
-            d.reject({'error':'Account not exists','errorCode':'ACT101'});        
+            d.reject({mobile:mobile});        
         }
     })
     return d.promise;    
@@ -93,7 +93,7 @@ Accounts.prototype.updateOtp = function(accountModel){
         encoding: 'base32'
     });
     debug('Account:UpdateOtp:secret: %s', secret.base32);    
-    if (!accountModel.createdAt){
+    if (!accountModel.exists){
         debug('Account:UpdateOtp:Before Account.create');
         var account = {otp:otp, mobile:accountModel.mobile};    
         Account.create(account).then(function(){
@@ -218,10 +218,13 @@ Accounts.prototype.isOnline = function(mobile){
             debug('Date.now() %s', Date.now());
             debug('Date.parse(%s) %s', account.updatedAt, Date.parse(account.updatedAt));
             debug('Difference %s', Date.now()-Date.parse(account.updatedAt));
+            var response = {isOnline:false,deviceToken:null,socketId:account.socketId};
             if((Date.now()-Date.parse(account.updatedAt)) < 30000){  //30 seconds
-                d.resolve(true);        
+                response.isOnline = true;
+                d.resolve(response);        
             } else {
-                d.resolve(false);        
+                response.deviceToken = account.deviceToken;
+                d.resolve(response);        
             }
         } else {
             debug('Account:IsOnline:account not exists');

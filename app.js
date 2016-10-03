@@ -9,8 +9,8 @@ app.set('port', (process.env.PORT || 5000));
 exports = module.exports = app;
 
 require("./router");
-var httpServer = require("./websocket");
-//require("./gcm");
+var httpServer = require("./websocket").server;
+require("./gcm");
 
 httpServer.listen(app.get('port'), function() {
   console.log('App is running on port', app.get('port'));

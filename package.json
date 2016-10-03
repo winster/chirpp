@@ -15,7 +15,9 @@
     "nodemailer-smtp-transport":"*",
     "pg":"*",
     "express-jwt":"*",
-    "jsonwebtoken":"*"
+    "jsonwebtoken":"*",
+    "multer":"*",
+    "gcloud":"*"
   },
   "devDependencies": {},
   "scripts": {

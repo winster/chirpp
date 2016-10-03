@@ -93,35 +93,27 @@ Accounts.prototype.updateOtp = function(accountModel){
         encoding: 'base32'
     });
     debug('Account:UpdateOtp:secret: %s', secret.base32);    
+    var account = {otp:otp, mobile:accountModel.mobile};    
     if (!accountModel.exists){
         debug('Account:UpdateOtp:Before Account.create');
-        var account = {otp:otp, mobile:accountModel.mobile};    
         Account.create(account).then(function(){
             debug('Account:UpdateOtp: Success Account.create');
             d.resolve(account);
-        }).catch(function(e){
-            debug('Account:UpdateOtp: Error Account.create');
+        }).catch(function(err){
+            debug('Account:UpdateOtp: Error Account.create %s', err);
             d.reject({'error':'Account.create','errorCode':'ACT102'});
         });
     } else {
         debug('Account:UpdateOtp: Before Account.findOne');
-        Account.findOne({ where: {mobile: accountModel.mobile} }).then(function(account) {
-            debug('Account:UpdateOtp:Account.findOne: %s',account);
-            if(account.accessToken) {//this means, user has already logged into the application once
-                debug('Account:UpdateOtp:Account.findOne:accessToken: %s', account.accessToken);
-                d.reject({'error':'Account.accessToken present','errorCode':'ACT103'});
-            } else {
-                debug('Account:UpdateOtp:Before Account.update');
-                account.update({otp:otp}).then(function(){
-                    debug('Account:UpdateOtp: Success Account.update');
-                    account.otp = otp;
-                    d.resolve(account);
-                }).catch(function(){
-                    debug('Account:UpdateOtp: Error Account.update');
-                    d.reject({'error':'Account.update','errorCode':'ACT104'});
-                });
-            }
-        })          
+        Account.update({otp:otp},{where:{mobile:accountModel.mobile}})
+        .then(function(){
+            debug('Account:UpdateOtp: Success Account.update');
+            account.otp = otp;
+            d.resolve(account);
+        }).catch(function(err){
+            debug('Account:UpdateOtp: Error Account.update %s', err);
+            d.reject({'error':'Account.update','errorCode':'ACT104'});
+        });         
     }  
     return d.promise;
 };
@@ -132,17 +124,12 @@ Accounts.prototype.verifyOtp = function(mobile, otp){
     Account.findOne({ where: {mobile: mobile} }).then(function(account) {
         if(account) {
             debug('Account:VerifyOtp: account exists');
-            if(account.accessToken) {//this means, user has already logged into the application once
-                debug('Account:verifyOtp:Account.findOne:accessToken: %s', account.accessToken);
-                d.reject({'error':'Account.accessToken present','errorCode':'ACT105'});
+            if(account.otp==otp){
+                debug('Account:VerifyOtp:OTP verification success');
+                d.resolve(account);
             } else {
-                if(account.otp==otp){
-                    debug('Account:VerifyOtp:OTP verification success');
-                    d.resolve(account);
-                } else {
-                    debug('Account:VerifyOtp:OTP failed to verify');
-                    d.reject({'error':'OTP failed to verify','errorCode':'ACT106'});            
-                }
+                debug('Account:VerifyOtp:OTP failed to verify');
+                d.reject({'error':'OTP failed to verify','errorCode':'ACT106'});            
             }            
         } else {
             debug('Account:VerifyOtp:account not exists');
@@ -231,6 +218,26 @@ Accounts.prototype.isOnline = function(mobile){
             d.reject({'error':'Account not exists','errorCode':'ACT112'});      
         }
     })
+    return d.promise;
+};
+
+Accounts.prototype.updateImageUrl = function(mobile, imageUrl, imageType){
+    debug('Account:UpdateImageUrl: %s, %s, %s:', mobile, imageUrl, imageType);
+    var d = Q.defer();
+    debug('Before Account.update', 'Account:UpdateImageUrl');
+    var updateObj = {};
+    if(imageType=='profile') {
+        updateObj.imageUrl = imageUrl;
+    } else if(imageType=='logo') {
+        updateObj.logoUrl = imageUrl;
+    }
+    Account.update(updateObj, {where:{mobile:mobile}}).then(function(){
+        debug('Success Account.update', 'Account:UpdateImageUrl');
+        d.resolve({'result':'success'});
+    }).catch(function(){
+        debug('Error Account.update', 'Account:UpdateImageUrl');
+        d.reject({'error':'Account.update','errorCode':'ACT113'});
+    });         
     return d.promise;
 };
 

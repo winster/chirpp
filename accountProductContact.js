@@ -26,6 +26,12 @@ var AccountProductContact = database.define('account_product_contact', {
     },
     active: {
     	type: Sequelize.BOOLEAN 
+    },
+    imageUrl:{
+        type: Sequelize.STRING
+    },
+    logoUrl:{
+        type: Sequelize.STRING
     }
 }, {
   freezeTableName: true
@@ -62,10 +68,10 @@ AccountProductContacts.prototype.getAccountProductContacts = function(accountId)
         if(!contacts) {
             contacts = []
         }
-        d.resolve({'contacts' : contacts});
+        d.resolve(contacts);
     }).catch(function(){
         debug('AccountProductContacts:GetAccountProductContacts: failed to get contacts');
-        d.reject({'error':'AccountProductContacts.GetAccountProductContacts','errorCode':'CNT102'});
+        d.resolve([]);
     });
     return d.promise;    
 };
@@ -93,8 +99,8 @@ AccountProductContacts.prototype.updateActiveStatus = function(contactId){
     AccountProductContact.update({active:true}, {where:{contactId:contactId}}).then(function(){
         debug('AccountProductContacts.updateActiveStatus : Successfully updated active status');
         d.resolve();
-    }).catch(function(){
-        debug('AccountProductContacts.UpdateActiveStatus', 'Error in updating');
+    }).catch(function(err){
+        debug(err);
         d.reject({'error':'AccountProductContacts.UpdateActiveStatus','errorCode':'CNT105'});
     });         
     return d.promise;    
@@ -107,9 +113,30 @@ AccountProductContacts.prototype.deleteContact = function(contact){
     .then(function() {
     	d.resolve({'result':'success'});            	
     }).catch(function(err){
-        d.reject(err);           
+        debug(err);
+        d.reject({'error':'AccountProductContacts.deleteContact','errorCode':'CNT106'});           
     });
     return d.promise;    
 };
+
+AccountProductContacts.prototype.updateImageUrl = function(contactId, imageUrl, imageType){
+    debug('AccountProductContacts:updateImageUrl: %s %s %s', contactId, imageUrl, imageType);
+    var d = Q.defer();
+    var updateObj = {};
+    if(imageType=='profile') {
+        updateObj.imageUrl = imageUrl;
+    } else if(imageType=='logo') {
+        updateObj.logoUrl = imageUrl;
+    }
+    AccountProductContact.update(updateObj, {where:{contactId:contactId}}).then(function(){
+        debug('AccountProductContacts.updateImageUrl : Successfully updated image urls');
+        d.resolve();
+    }).catch(function(err){
+        debug(err);
+        d.reject({'error':'AccountProductContacts.updateImageUrl','errorCode':'CNT107'});
+    });         
+    return d.promise;    
+};
+
 
 exports = module.exports = new AccountProductContacts();

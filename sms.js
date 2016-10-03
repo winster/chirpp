@@ -9,7 +9,7 @@ var Sms = function(){};
 Sms.prototype.send = function(account) {
     debug('Send:'+JSON.stringify(account), 'SMS');
     var d = Q.defer();
-    var mailOptions = {
+    /*var mailOptions = {
         from: 'admin@chirpee.com',
         to: account.mobile,
         subject: 'OTP for Chirpee Login',
@@ -40,14 +40,15 @@ Sms.prototype.send = function(account) {
         });        
     });
     req.write(JSON.stringify(mailOptions));
-    req.end();
+    req.end();*/
+    d.resolve({"result":"success"});    
     return d.promise;
 };
 
 Sms.prototype.invite = function(to, from) {
     debug('SMS:Invite: to %s , from %s', to, from);
     var d = Q.defer();
-    var mailOptions = {
+    /*var mailOptions = {
         from: 'admin@chirpee.com',
         to: to,
         subject: 'Welcome to Chirpee ',
@@ -78,7 +79,8 @@ Sms.prototype.invite = function(to, from) {
         });        
     });
     req.write(JSON.stringify(mailOptions));
-    req.end();
+    req.end();*/
+    d.resolve({"result":"success"});
     return d.promise;
 };
 

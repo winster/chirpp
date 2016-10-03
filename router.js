@@ -1,16 +1,22 @@
 var app = require('./app'),
     sms = require('./sms'),
-    account = require('./account'),
-    product = require('./product'),
-    accountProduct = require('./accountProduct'),
+    Product = require('./product'),
+    Account = require('./account'),
+    AccountProduct = require('./accountProduct'),
     AccountProductContact = require('./accountProductContact'),
     expressJwt = require('express-jwt'),
     Q = require("q"),
     jwt = require('jsonwebtoken'),
-    secret = require('./secret.json');
-
+    socketSend = require("./websocket").send,
+    secret = require('./secret.json'),
+    gcloud = require('gcloud'),
+    multer = require('multer')({
+        inMemory: true,
+        fileSize: 5 * 1024 * 1024 // no larger than 5mb, you can change as needed.
+    });
 
 const debug = require('debug')('chirpp');
+
 
 app.post('/otp', function(req, res) {
 	debug('Otp','Router');
@@ -20,8 +26,8 @@ app.post('/otp', function(req, res) {
         res.json(response);
         return;
     }
-    account.get(input.mobile)
-    .then(account.updateOtp)
+    Account.get(input.mobile)
+    .then(Account.updateOtp)
     .then(sms.send)
     .then(function(response){res.json(response)})
     .catch(function(error){res.json(error)});
@@ -35,12 +41,14 @@ app.post('/login', function(req, res) {
         res.json(response);
         return;
     }
-    account.verifyOtp(input.mobile, input.otp)
+    var accessToken;
+    Account.verifyOtp(input.mobile, input.otp)
     .then(function(accountModel){
-        var accessToken = jwt.sign({mobile : accountModel.mobile}, secret.key);
-        res.setHeader('Access-Token',accessToken);
+        accessToken = jwt.sign({mobile : accountModel.mobile}, secret.key);
         var d = Q.defer();
-        account.updateAccessToken(accountModel, accessToken) //at present accessToken saved in DB is not used. jwt recovers the object from given token 
+        /*at present accessToken saved in DB is used just to check whether a user 
+        is registed into system. in each webservice jwt recovers the user from given token */
+        Account.updateAccessToken(accountModel, accessToken) 
         .then(function(response){d.resolve(response)})
         .catch(function(error){d.reject()});                     
         return d.promise;
@@ -51,8 +59,26 @@ app.post('/login', function(req, res) {
         .then(function(){d.resolve(response);})
         .catch(function(err){d.reject(err);})        
         return d.promise;  
-    })
-    .then(function(response){res.json(response)})
+    }).then(function(response){
+        var d = Q.defer();
+        AccountProduct.getAccountProducts(input.mobile)
+        .then(function(products){
+            AccountProductContact.getAccountProductContacts(input.mobile)
+            .then(function(contacts){
+                Product.getProducts()
+                .then(function(allProducts){
+                    var response = {
+                        'all':allProducts, 
+                        'products':products, 
+                        'contacts':contacts, 
+                        'accessToken':accessToken
+                    };
+                    d.resolve(response);
+                }).catch(function(err){d.reject(err)});
+            }).catch(function(err){d.reject(err)});
+        }).catch(function(err){d.reject(err)});
+        return d.promise;
+    }).then(function(response){res.json(response)})
     .catch(function(error){res.json(error)});
 });
 
@@ -62,16 +88,34 @@ app.use('/addProducts', expressJwt({secret: secret.key, getToken: function(req){
 }}));
 
 app.post('/addProducts', function(req, res) {
-    debug('AddProducts','Router');
+    debug('AddProducts','Router', req.body);
     var products = req.body;
     if(!products || !products.length) {
         var response = {error:"No products present in request",errorCode:"ROU103"};
         res.json(response);
         return;
     }
-    accountProduct.addProducts(req.user.mobile, products)
-    .then(accountProduct.getAccountProducts)
-    .then(function(response){res.json(response)})
+    AccountProduct.addProducts(req.user.mobile, products)
+    .then(function(response){
+        var d = Q.defer();
+        AccountProduct.getAccountProducts(req.user.mobile)
+        .then(function(products){
+            AccountProductContact.getAccountProductContacts(req.user.mobile)
+            .then(function(contacts){
+                Product.getProducts()
+                .then(function(allProducts){
+                    debug('Router:AddProducts:final closure');
+                    var response = {
+                        'all':allProducts, 
+                        'products':products, 
+                        'contacts':contacts
+                    };
+                    d.resolve(response);
+                }).catch(function(err){d.reject(err)});
+            }).catch(function(err){d.reject(err)});
+        }).catch(function(err){d.reject(err)});
+        return d.promise;
+    }).then(function(response){res.json(response)})
     .catch(function(error){res.json(error)});
 }); 
         
@@ -89,7 +133,7 @@ app.post('/deviceToken', function(req, res) {
         res.json(response);
         return;
     }
-    account.updateDeviceToken(req.user.mobile, input.deviceToken)
+    Account.updateDeviceToken(req.user.mobile, input.deviceToken)
     .then(function(response){res.json(response)})
     .catch(function(error){res.json(error)});
 });    
@@ -107,7 +151,7 @@ app.post('/socketId', function(req, res) {
         res.json(response);
         return;
     }
-    account.updateSocketId(req.user.mobile, input.socketId)
+    Account.updateSocketId(req.user.mobile, input.socketId)
     .then(function(response){res.json(response)})
     .catch(function(error){res.json(error)});
 });    
@@ -139,10 +183,10 @@ app.post('/addContact', function(req, res) {
         contactRole : input.contactRole,
         active : false
     }
-    account.getOrFail(contact.accountId)
+    Account.getOrFail(contact.accountId)
     .then(function(){
         var d = Q.defer();
-        accountProduct.getAccountProduct(contact.accountId, contact.productId)
+        AccountProduct.getAccountProduct(contact.accountId, contact.productId)
         .then(function(product){
             if(contact.contactRole==product.role){
                 d.reject({error: 'Product Role and Contact Role cannot be the same',errorCode:"ROU108"});
@@ -153,7 +197,7 @@ app.post('/addContact', function(req, res) {
         return d.promise;
     }).then(function(){
         var d = Q.defer();
-        account.get(contact.contactId)
+        Account.get(contact.contactId)
         .then(function(response){d.resolve(response)})
         .catch(function(error){d.reject(error)});
         return d.promise;
@@ -205,7 +249,7 @@ app.post('/deleteContact', function(req, res) {
         res.json(response);
         return;
     }
-    account.getOrFail(req.user.mobile)
+    Account.getOrFail(req.user.mobile)
     .then(function(){
         var d = Q.defer();
         var contact = {
@@ -220,4 +264,88 @@ app.post('/deleteContact', function(req, res) {
     })
     .then(function(response){res.json(response)})
     .catch(function(error){res.json(error)});    
+});
+
+app.use('/receipt', expressJwt({secret: secret.key, getToken: function(req){
+    var token = null || req.body.token || req.query.token || req.headers['x-access-token'];
+    return token;
+}}));
+
+app.post('/receipt', function(req, res) {
+    debug('Receipt','Router');
+    var input = req.body;
+    if(!(input.productId && input.contactId && input.messageId)) {
+        var response = {error:"Product Id or Contact Id or Message Id not in request",errorCode:"ROU111"};
+        res.json(response);
+        return;
+    }
+    if(input.contactId == req.user.mobile) {
+        var response = {error:"Cannot send receipt to same user",errorCode:"ROU112"};
+        res.json(response);
+        return;
+    }
+    var payload = {
+        productId : input.productId,
+        contactId : input.contactId,
+        messageId : input.messageId,
+        messageType : "MESSAGE_RECEIPT"
+    }
+    Account.isOnline(input.contactId)
+    .then(function(response){
+        socketSend(payload);
+        res.json({"result":"success"});       
+    }).catch(function(error){res.json(error)});
+});
+
+app.use('/dashboard', expressJwt({secret: secret.key, getToken: function(req){
+    var token = null || req.body.token || req.query.token || req.headers['x-access-token'];
+    return token;
+}}));
+
+app.get('/dashboard', function(req, res) {
+    debug('Dashboard','Router');
+    AccountProduct.getAccountProducts(req.user.mobile)
+    .then(function(response){
+        var d = Q.defer();
+        AccountProductContact.getAccountProductContacts(req.user.mobile)
+        .then(function(contacts){
+            Product.getProducts()
+            .then(function(allProducts){
+                var response = {
+                    'all':allProducts, 
+                    'products':products, 
+                    'contacts':contacts
+                };
+                d.resolve(response);
+            }).catch(function(err){d.reject(err)});
+        }).catch(function(err){d.reject(err)});
+        return d.promise;
+    })
+    .then(function(response){res.json(response)})
+    .catch(function(error){res.json(error)});
+}); 
+
+app.use('/image', expressJwt({secret: secret.key, getToken: function(req){
+    var token = null || req.body.token || req.query.token || req.headers['x-access-token'];
+    return token;
+}}));
+
+app.post('/image', function (req, res) {
+    debug('ImageUrl', 'Router', req.body);
+    var input = req.body;
+    if(!(input.imageUrl && input.imageType)) {
+        var response = {error:"Image Url or Image type not in request",errorCode:"ROU112"};
+        res.json(response);
+        return;
+    }
+    Account.updateImageUrl(req.user.mobile,input.imageUrl, input.imageType)
+    .then(function(response){
+        var d = Q.defer();
+        AccountProductContact.updateImageUrl(req.user.mobile,input.imageUrl, input.imageType)
+        .then(function(response){d.resolve(response);})
+        .catch(function(err){d.reject(err)});
+        return d.promise;
+    }).then(function(response){res.json(response)})
+    .catch(function(error){res.json(error)});
+    
 });

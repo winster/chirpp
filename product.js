@@ -47,6 +47,7 @@ Products.prototype.getProducts = function(){
     debug('Products:GetProducts:');
     var d = Q.defer();
     Product.findAll().then(function(products) {
+        debug('Products:GetProducts:result: %s', products);
         if(!products) {
             products = []
         }

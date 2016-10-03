@@ -56,6 +56,7 @@ AccountProducts.prototype.addProducts = function(mobile, products){
             accountId : mobile,
             role : product.role
         };
+        debug('AccountProducts:AddProducts: product %s', product);
         promises.push(this.addProduct(accountProduct));
     }
     Q.all(promises).then(function(){
@@ -87,10 +88,7 @@ AccountProducts.prototype.getAccountProducts = function(mobile){
     debug('AccountProducts:GetAccountProducts: %s', mobile);
     var d = Q.defer();
     AccountProduct.findAll({ where: { accountId: mobile } }).then(function(products) {
-        if(!products) {
-            products = []
-        }
-        d.resolve({'products' : products});
+        d.resolve(products);
     }).catch(function(){
         debug('AccountProducts:GetAccountProducts: failed to get products');
         d.reject({'error':'AccountProducts.GetAccountProducts: failed to get products','errorCode':'PRD103'});

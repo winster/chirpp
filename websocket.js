@@ -3,7 +3,7 @@ var http = require('http'),
     shortid = require('shortid'),
     jwt = require('jsonwebtoken'),
     account = require('./account'),
-    //gcm = require("./gcm"),
+    gcm = require("./gcm"),
     secret = require('./secret.json');
 
 const debug = require('debug')('chirpp');
@@ -52,7 +52,7 @@ wsServer.on("connection", function(websocket) {
             var json = JSON.parse(message);
             account.isOnline(json.accountId).then(function(response){
                 if(response.isOnline && clients[response.socketId]) {
-                    websocket.send(message, function(){});
+                    clients[response.socketId].send(message, function(){});
                 } else {
                     /*gcm(response.deviceToken, message, function(error){
                         //handle gcm error callbacks
@@ -67,5 +67,16 @@ wsServer.on("connection", function(websocket) {
     });
 });
 
-exports = module.exports = httpServer;
+var send = function(isOnline, socketId, deviceToken, message) {
+    debug("Websocket:send message %s %s %s %s", isOnline, socketId, deviceToken, message);
+    if(isOnline && clients[socketId]) {
+        clients[socketId].send(message, function(){});
+    }  else {
+        /*gcm(response.deviceToken, message, function(error){
+            //handle gcm error callbacks
+        });*/
+    }
+}
+
+exports = module.exports = {server:httpServer,send:send};
 

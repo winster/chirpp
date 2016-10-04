@@ -40,7 +40,7 @@ wsServer.on("connection", function(websocket) {
     clients[socketId] = websocket;
     websocket.socketId = socketId;
     websocket.accountId = user.mobile;
-    debug("websocket connection open %s", socketId);
+    debug("websocket connection open %s %s", user.mobile, socketId);
     //var result = {'connection_id': connection_id}
     var result = {'result': 'success'};
     websocket.send(JSON.stringify(result), function() {  })

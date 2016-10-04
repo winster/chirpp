@@ -46,12 +46,13 @@ wsServer.on("connection", function(websocket) {
     websocket.send(JSON.stringify(result), function() {  })
     websocket.on('message', function incoming(message) {
         debug('received: %s', message);
+        var accountId = this.accountId;
         if(message=="ping") {
-            account.ping(this.accountId);    
+            account.ping(accountId);    
         } else {
             var json = JSON.parse(message);
             account.isOnline(json.contactId).then(function(response){
-                json.contactId=this.accountId;
+                json.contactId=accountId;
                 if(response.isOnline && clients[response.socketId]) {
                     clients[response.socketId].send(JSON.stringify(json), function(){});
                 } else {

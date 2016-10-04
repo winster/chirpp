@@ -80,5 +80,5 @@ var wsSend = function(isOnline, socketId, deviceToken, message) {
     }
 }
 
-exports = module.exports = {server:httpServer,send:send};
+exports = module.exports = {server:httpServer,send:wsSend};
 

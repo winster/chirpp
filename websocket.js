@@ -50,9 +50,10 @@ wsServer.on("connection", function(websocket) {
             account.ping(this.accountId);    
         } else {
             var json = JSON.parse(message);
-            account.isOnline(json.accountId).then(function(response){
+            account.isOnline(json.contactId).then(function(response){
+                json.contactId=this.accountId;
                 if(response.isOnline && clients[response.socketId]) {
-                    clients[response.socketId].send(message, function(){});
+                    clients[response.socketId].send(JSON.stringify(json), function(){});
                 } else {
                     /*gcm(response.deviceToken, message, function(error){
                         //handle gcm error callbacks

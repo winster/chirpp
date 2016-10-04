@@ -142,7 +142,7 @@ AccountProductContacts.prototype.updateImageUrl = function(contactId, imageUrl, 
 AccountProductContacts.prototype.getInvites = function(accountId, contactsLength){
     debug('AccountProductContacts:GetInvites: %s %s', accountId, contactsLength);
     var d = Q.defer();
-    if(contactsLength==0) {
+    if(contactsLength!=0) {
         d.resolve([]);
     } else {
         AccountProductContact.findAll({ where: { contactId: accountId } }).then(function(contacts) {

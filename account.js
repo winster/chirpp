@@ -244,7 +244,7 @@ Accounts.prototype.updateImageUrl = function(mobile, imageUrl, imageType){
 Accounts.prototype.getAccountDetails = function(accountIds){
     debug('Account:GetAccountDetails: %s', accountIds);
     var d = Q.defer();
-    Account.findAll({ where: {mobile: mobile} }).then(function(accounts) {
+    Account.findAll({ where: {mobile: accountIds} }).then(function(accounts) {
         if(account) {
             debug('account length %s', accounts.length);
             var accountList = {};
@@ -252,7 +252,7 @@ Accounts.prototype.getAccountDetails = function(accountIds){
                 var account = accounts[i];
                 accountList[account.accountId]={imageUrl:account.imageUrl,logoUrl:account.logoUrl,name:account.name};
             }
-            d.resolve(urls);        
+            d.resolve(accountList);        
         } else {
             debug('account not exists', 'Account:GetAccountDetails');
             d.reject();        

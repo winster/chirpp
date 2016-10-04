@@ -223,9 +223,16 @@ app.post('/addContact', function(req, res) {
         AccountProductContact.addContact(contact)
         .then(function(response){
             if(!contact.active){
-                response.description = 'Account does not exist in system. But added to contacts';
-            } 
-            d.resolve(response);
+                response.active = false;
+                d.resolve(response);
+            } else {
+                Account.getAccountDetails([contact.contactId])
+                .then(function(accountList){
+                    var response = accountList[contact.contactId];
+                    response.active = true;
+                    d.resolve(response)
+                }).catch(function(error){d.reject(error)})
+            }
         }).catch(function(error){d.reject(error)})
         return d.promise;
     })

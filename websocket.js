@@ -69,7 +69,7 @@ wsServer.on("connection", function(websocket) {
     });
 });
 
-var send = function(isOnline, socketId, deviceToken, message) {
+var wsSend = function(isOnline, socketId, deviceToken, message) {
     debug("Websocket:send message %s %s %s %s", isOnline, socketId, deviceToken, message);
     if(isOnline && clients[socketId]) {
         clients[socketId].send(message, function(){});

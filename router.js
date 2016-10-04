@@ -7,7 +7,7 @@ var app = require('./app'),
     expressJwt = require('express-jwt'),
     Q = require("q"),
     jwt = require('jsonwebtoken'),
-    socketSend = require("./websocket").send,
+    socketSend = require("./websocket").wsSend,
     secret = require('./secret.json'),
     gcloud = require('gcloud'),
     multer = require('multer')({
@@ -292,7 +292,7 @@ app.post('/receipt', function(req, res) {
     }
     Account.isOnline(input.contactId)
     .then(function(response){
-        socketSend(payload);
+        socketSend(response.isOnline,response.socketId,response.deviceToken,payload);
         res.json({"result":"success"});       
     }).catch(function(error){res.json(error)});
 });

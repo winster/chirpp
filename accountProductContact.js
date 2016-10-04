@@ -138,5 +138,20 @@ AccountProductContacts.prototype.updateImageUrl = function(contactId, imageUrl, 
     return d.promise;    
 };
 
+AccountProductContacts.prototype.getInvites = function(contactId){
+    debug('AccountProductContacts:GetInvites: %s', contactId);
+    var d = Q.defer();
+    AccountProductContact.findAll({ where: { contactId: contactId } }).then(function(contacts) {
+        if(!contacts) {
+            contacts = []
+        }
+        d.resolve(contacts);
+    }).catch(function(){
+        debug('AccountProductContacts:GetInvites: failed to get contacts');
+        d.resolve([]);
+    });    
+    return d.promise;    
+};
+
 
 exports = module.exports = new AccountProductContacts();

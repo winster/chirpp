@@ -65,15 +65,19 @@ app.post('/login', function(req, res) {
         .then(function(products){
             AccountProductContact.getAccountProductContacts(input.mobile)
             .then(function(contacts){
-                Product.getProducts()
-                .then(function(allProducts){
-                    var response = {
-                        'all':allProducts, 
-                        'products':products, 
-                        'contacts':contacts, 
-                        'accessToken':accessToken
-                    };
-                    d.resolve(response);
+                AccountProductContact.getInvites(input.mobile)
+                .then(function(invites){
+                    Product.getProducts()
+                    .then(function(allProducts){
+                        var response = {
+                            'all':allProducts, 
+                            'products':products, 
+                            'contacts':contacts, 
+                            'invites':invites,
+                            'accessToken':accessToken
+                        };
+                        d.resolve(response);
+                    }).catch(function(err){d.reject(err)});
                 }).catch(function(err){d.reject(err)});
             }).catch(function(err){d.reject(err)});
         }).catch(function(err){d.reject(err)});

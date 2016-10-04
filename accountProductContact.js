@@ -1,6 +1,7 @@
 "use strict";
 var Q = require("q"),
-    Sequelize = require('sequelize');
+    Sequelize = require('sequelize'),
+    Account = require('./account'),
     database = require('./database');
 
 const debug = require('debug')('chirpp');
@@ -21,7 +22,7 @@ var AccountProductContact = database.define('account_product_contact', {
     contactName: {
         type: Sequelize.STRING
     },
-    contactRole: {//0 for subscriber, 1 for provider, 2 for colleague. Same as contactRole in AccountProductContact
+    contactRole: {//0 for subscriber, 1 for provider, 2 for colleague. 
         type: Sequelize.STRING
     },
     active: {
@@ -138,18 +139,67 @@ AccountProductContacts.prototype.updateImageUrl = function(contactId, imageUrl, 
     return d.promise;    
 };
 
-AccountProductContacts.prototype.getInvites = function(contactId){
-    debug('AccountProductContacts:GetInvites: %s', contactId);
+AccountProductContacts.prototype.getInvites = function(accountId, contactsLength){
+    debug('AccountProductContacts:GetInvites: %s %s', accountId, contactsLength);
     var d = Q.defer();
-    AccountProductContact.findAll({ where: { contactId: contactId } }).then(function(contacts) {
-        if(!contacts) {
-            contacts = []
-        }
-        d.resolve(contacts);
-    }).catch(function(){
-        debug('AccountProductContacts:GetInvites: failed to get contacts');
+    if(contactsLength==0) {
         d.resolve([]);
-    });    
+    } else {
+        AccountProductContact.findAll({ where: { contactId: accountId } }).then(function(contacts) {
+            if(!contacts) {
+                contacts = []
+            } else {
+                var accountIds = [];
+                for(var i=0;i<contacts.length;++i) {
+                    var contact = contacts[i];
+                    accountIds.push(contact.accountId);
+                }
+                Account.getAccountDetails(accountIds)
+                .then(function(accountList){       
+                    for(var i=0;i<contacts.length;++i) {
+                        var contact = contacts[i];
+                        var contactId = contact.accountId;
+                        contact.accountId = accountId;
+                        contact.contactId = contactId;
+                        var details = accountList[contactId];
+                        if(details) {
+                            contact.imageUrl = details.imageUrl;
+                            contact.logoUrl = details.logoUrl; 
+                            contact.contactName = details.name;
+                        } else {
+                            contact.imageUrl = '';
+                            contact.logoUrl = ''; 
+                            contact.contactName = '';
+                        }
+                        if(contact.contactRole=='0') {
+                            contact.contactRole='1';
+                        } else {
+                            contact.contactRole='0';
+                        }
+                        contact.active=true;
+                    }
+                    d.resolve(contacts);
+                }).catch(function(){
+                    for(var i=0;i<contacts.length;++i) {
+                        var contact = contacts[i];
+                        contact.imageUrl = '';
+                        contact.logoUrl = '';
+                        contact.contactName = '';
+                        if(contact.contactRole=='0') {
+                            contact.contactRole='1';
+                        } else {
+                            contact.contactRole='0';
+                        }
+                        contact.active=true;
+                    }
+                    d.resolve(contacts);
+                });
+            }
+        }).catch(function(){
+            debug('AccountProductContacts:GetInvites: failed to get contacts');
+            d.resolve([]);
+        });
+    }    
     return d.promise;    
 };
 

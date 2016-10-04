@@ -65,7 +65,7 @@ app.post('/login', function(req, res) {
         .then(function(products){
             AccountProductContact.getAccountProductContacts(input.mobile)
             .then(function(contacts){
-                AccountProductContact.getInvites(input.mobile)
+                AccountProductContact.getInvites(input.mobile, contacts.length)
                 .then(function(invites){
                     Product.getProducts()
                     .then(function(allProducts){

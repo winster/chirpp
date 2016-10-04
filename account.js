@@ -241,4 +241,24 @@ Accounts.prototype.updateImageUrl = function(mobile, imageUrl, imageType){
     return d.promise;
 };
 
+Accounts.prototype.getAccountDetails = function(accountIds){
+    debug('Account:GetAccountDetails: %s', accountIds);
+    var d = Q.defer();
+    Account.findAll({ where: {mobile: mobile} }).then(function(accounts) {
+        if(account) {
+            debug('account length %s', accounts.length);
+            var accountList = {};
+            for(var i=0;i<accounts.length;++i){
+                var account = accounts[i];
+                accountList[account.accountId]={imageUrl:account.imageUrl,logoUrl:account.logoUrl,name:account.name};
+            }
+            d.resolve(urls);        
+        } else {
+            debug('account not exists', 'Account:GetAccountDetails');
+            d.reject();        
+        }
+    })
+    return d.promise;    
+};
+
 exports = module.exports = new Accounts();

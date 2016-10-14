@@ -1,5 +1,5 @@
 var app = require('./app'),
-    sms = require('./sms'),
+    Sms = require('./sms'),
     Product = require('./product'),
     Account = require('./account'),
     AccountProduct = require('./accountProduct'),
@@ -26,9 +26,8 @@ app.post('/otp', function(req, res) {
         res.json(response);
         return;
     }
-    Account.get(input.mobile)
-    .then(Account.updateOtp)
-    .then(sms.send)
+    Account.updateOtp(input.mobile)
+    .then(Sms.send)
     .then(function(response){res.json(response)})
     .catch(function(error){res.json(error)});
 });
@@ -185,10 +184,12 @@ app.post('/addContact', function(req, res) {
         contactId : input.contactId.toLowerCase(),  //handle mobile number format
         contactName : input.contactName,
         contactRole : input.contactRole,
-        active : false
+        invited : 0 //invited
     }
-    Account.getOrFail(contact.accountId)
-    .then(function(){
+    var account;
+    Account.get(contact.accountId)
+    .then(function(accountModel){
+        account = accountModel;
         var d = Q.defer();
         AccountProduct.getAccountProduct(contact.accountId, contact.productId)
         .then(function(product){
@@ -201,39 +202,22 @@ app.post('/addContact', function(req, res) {
         return d.promise;
     }).then(function(){
         var d = Q.defer();
-        Account.get(contact.contactId)
-        .then(function(response){d.resolve(response)})
-        .catch(function(error){d.reject(error)});
-        return d.promise;
-    }).then(function(contactObj){
-        var d = Q.defer();
-        debug("Router:addContact:checkContactExists %s", JSON.stringify(contactObj));
-        if(contactObj.accessToken){
-            contact.active = true;  //updating function scope "contact" object (refer line 127)
+        Account.isOnline(contact.contactId)
+        .then(function(response){
+            socketSend(response.isOnline,response.socketId,response.deviceToken,account);
             d.resolve(contact);
-        } else {
-            sms.invite(contact.contactId,contact.accountId)
+        }).catch(function(error){
+            Sms.invite(contact.contactId,contact.accountId)
             .then(function(response){d.resolve(contact)})
             .catch(function(error){d.reject(error)});
-        }
+        });
         return d.promise;
     }).then(function(){
         var d = Q.defer();
         debug("Router:addContact:before adding contact");
         AccountProductContact.addContact(contact)
-        .then(function(response){
-            if(!contact.active){
-                response.active = false;
-                d.resolve(response);
-            } else {
-                Account.getAccountDetails([contact.contactId])
-                .then(function(accountList){
-                    var response = accountList[contact.contactId];
-                    response.active = true;
-                    d.resolve(response)
-                }).catch(function(error){d.reject(error)})
-            }
-        }).catch(function(error){d.reject(error)})
+        .then(function(response){d.resolve(response)})
+        .catch(function(error){d.reject(error)})
         return d.promise;
     })
     .then(function(response){res.json(response)})
@@ -260,19 +244,12 @@ app.post('/deleteContact', function(req, res) {
         res.json(response);
         return;
     }
-    Account.getOrFail(req.user.mobile)
-    .then(function(){
-        var d = Q.defer();
-        var contact = {
-            accountId : req.user.mobile,
-            productId : input.productId, 
-            contactId : input.contactId            
-        }
-        AccountProductContact.deleteContact(contact)
-        .then(function(response){d.resolve(response)})
-        .catch(function(error){d.reject(error)});
-        return d.promise;
-    })
+    var contact = {
+        accountId : req.user.mobile,
+        productId : input.productId, 
+        contactId : input.contactId            
+    }
+    AccountProductContact.deleteContact(contact)
     .then(function(response){res.json(response)})
     .catch(function(error){res.json(error)});    
 });
@@ -320,15 +297,12 @@ app.get('/dashboard', function(req, res) {
         var d = Q.defer();
         AccountProductContact.getAccountProductContacts(req.user.mobile)
         .then(function(contacts){
-            Product.getProducts()
-            .then(function(allProducts){
+            AccountProductContact.getInvites(req.user.mobile, contacts.length)
+            .then(function(invites){
                 var response = {
-                    'all':allProducts, 
-                    'products':products, 
-                    'contacts':contacts
-                };
-                d.resolve(response);
-            }).catch(function(err){d.reject(err)});
+                'contacts':contacts
+            };
+            d.resolve(response);
         }).catch(function(err){d.reject(err)});
         return d.promise;
     })
@@ -360,3 +334,4 @@ app.post('/image', function (req, res) {
     .catch(function(error){res.json(error)});
     
 });
+

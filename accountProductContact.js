@@ -25,8 +25,8 @@ var AccountProductContact = database.define('account_product_contact', {
     contactRole: {//0 for subscriber, 1 for provider, 2 for colleague. 
         type: Sequelize.STRING
     },
-    active: {
-    	type: Sequelize.BOOLEAN 
+    invited: { //0 for invited, 1 for accepted, 2 for rejected
+    	type: Sequelize.STRING 
     },
     imageUrl:{
         type: Sequelize.STRING
@@ -50,11 +50,10 @@ AccountProductContacts.prototype.addContact = function(contact){
     	debug('AccountProductContacts:AddContact: %s , %s', created, JSON.stringify(contact));
         if(created) {
         	debug('AccountProductContacts:AddContact: successfully added contact with id %s ', contact.contactId);
-            d.resolve({'result':'success'});            	
         } else {
             debug('AccountProductContacts:AddContact: contact already added to account');
-            d.reject({'error':'AccountProductContacts:AddContact: contact already added to account','errorCode':'CNT101'});            	
         }
+        d.resolve(contact);             
     }).catch(function(err){
         debug('AccountProductContacts:AddContact: failed to add contact', err);
         d.reject(err);           
@@ -139,67 +138,69 @@ AccountProductContacts.prototype.updateImageUrl = function(contactId, imageUrl, 
     return d.promise;    
 };
 
-AccountProductContacts.prototype.getInvites = function(accountId, contactsLength){
-    debug('AccountProductContacts:GetInvites: %s %s', accountId, contactsLength);
+/*
+there is a problem with invites. fix it.
+*/
+AccountProductContacts.prototype.getInvites = function(accountId){
+    debug('AccountProductContacts:GetInvites: %s', accountId);
     var d = Q.defer();
-    if(contactsLength!=0) {
-        d.resolve([]);
-    } else {
-        AccountProductContact.findAll({ where: { contactId: accountId } }).then(function(contacts) {
-            if(!contacts) {
-                contacts = []
-            } else {
-                var accountIds = [];
+    AccountProductContact.findAll({ where: { contactId: accountId } }).then(function(contacts) {
+        var len = 0 || ( contacts && contacts.length)
+        debug('AccountProductContacts:GetInvites:findAll: %s', len);
+        if(!contacts) {
+            contacts = []
+        } else {
+            var accountIds = [];
+            for(var i=0;i<contacts.length;++i) {
+                var contact = contacts[i];
+                accountIds.push(contact.accountId);
+            }
+            Account.getAccountDetails(accountIds)
+            .then(function(accountList){       
                 for(var i=0;i<contacts.length;++i) {
                     var contact = contacts[i];
-                    accountIds.push(contact.accountId);
-                }
-                Account.getAccountDetails(accountIds)
-                .then(function(accountList){       
-                    for(var i=0;i<contacts.length;++i) {
-                        var contact = contacts[i];
-                        var contactId = contact.accountId;
-                        contact.accountId = accountId;
-                        contact.contactId = contactId;
-                        var details = accountList[contactId];
-                        if(details) {
-                            contact.imageUrl = details.imageUrl;
-                            contact.logoUrl = details.logoUrl; 
-                            contact.contactName = details.name;
-                        } else {
-                            contact.imageUrl = '';
-                            contact.logoUrl = ''; 
-                            contact.contactName = '';
-                        }
-                        if(contact.contactRole=='0') {
-                            contact.contactRole='1';
-                        } else {
-                            contact.contactRole='0';
-                        }
-                        contact.active=true;
-                    }
-                    d.resolve(contacts);
-                }).catch(function(){
-                    for(var i=0;i<contacts.length;++i) {
-                        var contact = contacts[i];
+                    var contactId = contact.accountId;
+                    contact.accountId = accountId;
+                    contact.contactId = contactId;
+                    var details = accountList[contactId];
+                    debug('AccountProductContacts:GetInvites:details %s', JSON.stringify(accountList));
+                    if(details) {
+                        contact.imageUrl = details.imageUrl;
+                        contact.logoUrl = details.logoUrl; 
+                        contact.contactName = details.name;
+                    } else {
                         contact.imageUrl = '';
-                        contact.logoUrl = '';
+                        contact.logoUrl = ''; 
                         contact.contactName = '';
-                        if(contact.contactRole=='0') {
-                            contact.contactRole='1';
-                        } else {
-                            contact.contactRole='0';
-                        }
-                        contact.active=true;
                     }
-                    d.resolve(contacts);
-                });
-            }
-        }).catch(function(){
-            debug('AccountProductContacts:GetInvites: failed to get contacts');
-            d.resolve([]);
-        });
-    }    
+                    if(contact.contactRole=='0') {
+                        contact.contactRole='1';
+                    } else {
+                        contact.contactRole='0';
+                    }
+                    contact.active=true;
+                }
+                d.resolve(contacts);
+            }).catch(function(){
+                for(var i=0;i<contacts.length;++i) {
+                    var contact = contacts[i];
+                    contact.imageUrl = '';
+                    contact.logoUrl = '';
+                    contact.contactName = '';
+                    if(contact.contactRole=='0') {
+                        contact.contactRole='1';
+                    } else {
+                        contact.contactRole='0';
+                    }
+                    contact.active=true;
+                }
+                d.resolve(contacts);
+            });
+        }
+    }).catch(function(){
+        debug('AccountProductContacts:GetInvites: failed to get contacts');
+        d.resolve([]);
+    });   
     return d.promise;    
 };
 

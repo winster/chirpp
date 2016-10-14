@@ -60,32 +60,17 @@ Accounts.prototype.get = function(mobile){
     Account.findOne({ where: {mobile: mobile} }).then(function(account) {
         if(account) {
             debug('account exists', 'Account:Get');
-            d.resolve({exists:true,mobile:mobile,accessToken:account.accessToken});        
+            d.resolve(account);        
         } else {
             debug('account not exists', 'Account:Get');
-            d.resolve({mobile:mobile});        
+            d.reject({'error':'Account does not exist','errorCode':'ACT101'});        
         }
     })
     return d.promise;    
 };
 
-Accounts.prototype.getOrFail = function(mobile){
-    debug('Account:GetOrFail: %s', mobile);
-    var d = Q.defer();
-    Account.findOne({ where: {mobile: mobile} }).then(function(account) {
-        if(account) {
-            debug('account exists', 'Account:GetOrFail');
-            d.resolve({exists:true,mobile:mobile,accessToken:account.accessToken});        
-        } else {
-            debug('account not exists', 'Account:GetOrFail');
-            d.reject({mobile:mobile});        
-        }
-    })
-    return d.promise;    
-};
-
-Accounts.prototype.updateOtp = function(accountModel){
-    debug('Account:UpdateOtp: %s:', accountModel);
+Accounts.prototype.updateOtp = function(mobile){
+    debug('Account:UpdateOtp: %s:', mobile);
     var d = Q.defer();
     var secret = speakeasy.generateSecret({length: 20});
     var otp = speakeasy.totp({
@@ -93,28 +78,30 @@ Accounts.prototype.updateOtp = function(accountModel){
         encoding: 'base32'
     });
     debug('Account:UpdateOtp:secret: %s', secret.base32);    
-    var account = {otp:otp, mobile:accountModel.mobile};    
-    if (!accountModel.exists){
-        debug('Account:UpdateOtp:Before Account.create');
-        Account.create(account).then(function(){
-            debug('Account:UpdateOtp: Success Account.create');
-            d.resolve(account);
-        }).catch(function(err){
-            debug('Account:UpdateOtp: Error Account.create %s', err);
-            d.reject({'error':'Account.create','errorCode':'ACT102'});
-        });
-    } else {
-        debug('Account:UpdateOtp: Before Account.findOne');
-        Account.update({otp:otp},{where:{mobile:accountModel.mobile}})
-        .then(function(){
-            debug('Account:UpdateOtp: Success Account.update');
-            account.otp = otp;
-            d.resolve(account);
-        }).catch(function(err){
-            debug('Account:UpdateOtp: Error Account.update %s', err);
-            d.reject({'error':'Account.update','errorCode':'ACT104'});
-        });         
-    }  
+    var accountObj = {otp:otp, mobile:mobile};            
+    Account.findOne({ where: {mobile: mobile} }).then(function(account) {
+        if(account) {
+            debug('Account:UpdateOtp: Before Account.update');
+            Account.update({otp:otp},{where:{mobile:mobile}})
+            .then(function(){
+                debug('Account:UpdateOtp: Success Account.update');
+                accountObj.otp = otp;
+                d.resolve(accountObj);
+            }).catch(function(err){
+                debug('Account:UpdateOtp: Error Account.update %s', err);
+                d.reject({'error':'Account.update','errorCode':'ACT104'});
+            });
+        } else {
+            debug('Account:UpdateOtp:Before Account.create');
+            Account.create(accountObj).then(function(){
+                debug('Account:UpdateOtp: Success Account.create');
+                d.resolve(accountObj);
+            }).catch(function(err){
+                debug('Account:UpdateOtp: Error Account.create %s', err);
+                d.reject({'error':'Account.create','errorCode':'ACT102'});
+            }); 
+        }
+    })
     return d.promise;
 };
 
@@ -245,12 +232,12 @@ Accounts.prototype.getAccountDetails = function(accountIds){
     debug('Account:GetAccountDetails: %s', accountIds);
     var d = Q.defer();
     Account.findAll({ where: {mobile: accountIds} }).then(function(accounts) {
-        if(account) {
+        if(accounts) {
             debug('account length %s', accounts.length);
             var accountList = {};
             for(var i=0;i<accounts.length;++i){
                 var account = accounts[i];
-                accountList[account.accountId]={imageUrl:account.imageUrl,logoUrl:account.logoUrl,name:account.name};
+                accountList[account.mobile]={imageUrl:account.imageUrl,logoUrl:account.logoUrl,name:account.name};
             }
             d.resolve(accountList);        
         } else {

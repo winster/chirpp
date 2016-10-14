@@ -3,7 +3,7 @@ var http = require('http'),
     shortid = require('shortid'),
     jwt = require('jsonwebtoken'),
     account = require('./account'),
-    gcm = require("./gcm"),
+    //gcm = require("./gcm"),
     secret = require('./secret.json');
 
 const debug = require('debug')('chirpp');

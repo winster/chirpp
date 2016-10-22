@@ -51,13 +51,6 @@ app.post('/login', function(req, res) {
         .then(function(response){d.resolve(response)})
         .catch(function(error){d.reject()});                     
         return d.promise;
-    })
-    .then(function(response){
-        var d = Q.defer();
-        AccountProductContact.updateActiveStatus(input.mobile)
-        .then(function(){d.resolve(response);})
-        .catch(function(err){d.reject(err);})        
-        return d.promise;  
     }).then(function(response){
         var d = Q.defer();
         AccountProduct.getAccountProducts(input.mobile)
@@ -184,7 +177,8 @@ app.post('/addContact', function(req, res) {
         contactId : input.contactId.toLowerCase(),  //handle mobile number format
         contactName : input.contactName,
         contactRole : input.contactRole,
-        invited : 0 //invited
+        invited : 0, //invited
+        type: 'invite'
     }
     var account;
     Account.get(contact.accountId)
@@ -202,37 +196,37 @@ app.post('/addContact', function(req, res) {
         return d.promise;
     }).then(function(){
         var d = Q.defer();
-        Account.isOnline(contact.contactId)
-        .then(function(response){
-            socketSend(response.isOnline,response.socketId,response.deviceToken,account);
-            d.resolve(contact);
-        }).catch(function(error){
-            Sms.invite(contact.contactId,contact.accountId)
-            .then(function(response){d.resolve(contact)})
-            .catch(function(error){d.reject(error)});
-        });
-        return d.promise;
-    }).then(function(){
-        var d = Q.defer();
         debug("Router:addContact:before adding contact");
         AccountProductContact.addContact(contact)
         .then(function(response){d.resolve(response)})
-        .catch(function(error){d.reject(error)})
+        .catch(function(error){d.reject(error)});
         return d.promise;
-    })
-    .then(function(response){res.json(response)})
+    }).then(function(contactModel){
+        var d = Q.defer();
+        contact.invited = contactModel.invited;
+        Account.isOnline(contact.contactId)
+        .then(function(response){
+            socketSend(response.isOnline,response.socketId,response.deviceToken,contact);
+            d.resolve(contact);
+        }).catch(function(error){
+            Sms.invite(contact.contactId,contact.accountId)
+            .then(function(response){d.resolve(response)})
+            .catch(function(error){d.reject(error)});
+        });
+        return d.promise;
+    }).then(function(response){res.json({invited:contact.invited})})
     .catch(function(error){res.json(error)});
 
 });
 
 
-app.use('/deleteContact', expressJwt({secret: secret.key, getToken: function(req){
+app.use('/acceptInvite', expressJwt({secret: secret.key, getToken: function(req){
     var token = null || req.body.token || req.query.token || req.headers['x-access-token'];
     return token;
 }}));
 
-app.post('/deleteContact', function(req, res) {
-    debug('DeleteContact','Router');
+app.post('/acceptInvite', function (req, res) {
+    debug('Router:AcceptInvite: %s', req.body);
     var input = req.body;
     if(!(input.productId && input.contactId)) {
         var response = {error:"Product Id or Contact Id not in request",errorCode:"ROU109"};
@@ -240,7 +234,110 @@ app.post('/deleteContact', function(req, res) {
         return;
     }
     if(input.contactId == req.user.mobile) {
-        var response = {error:"Cannot delete same user to contacts",errorCode:"ROU110"};
+        var response = {error:"Logged In user and contactId cannot be the same",errorCode:"ROU110"};
+        res.json(response);
+        return;
+    }
+    var contact = {
+        accountId : req.user.mobile,
+        productId : input.productId,
+        contactId : input.contactId.toLowerCase(), //invited
+        type: 'acceptInvite'
+    }
+    var account;
+    Account.get(contact.accountId)
+    .then(function(){
+        var d = Q.defer();
+        AccountProduct.getAccountProduct(contact.accountId, contact.productId)
+        .then(function(){d.resolve();})
+        .catch(function(error){d.reject(error)})
+        return d.promise;
+    }).then(function(){
+        var d = Q.defer();
+        AccountProductContact.acceptInvite(contact.accountId, contact.productId, contact.contactId)
+        .then(function(){d.resolve()})
+        .catch(function(error){d.reject(error)})
+        return d.promise;
+    }).then(function(){
+        var d = Q.defer();
+        contact.invited = 1;
+        Account.isOnline(contact.contactId)
+        .then(function(response){
+            socketSend(response.isOnline,response.socketId,response.deviceToken,contact);
+            d.resolve(contact);
+        }).catch(function(error){d.reject(error)});
+        return d.promise;
+    }).then(function(response){res.json({invited:1})})
+    .catch(function(error){res.json(error)});
+});
+
+
+app.use('/rejectInvite', expressJwt({secret: secret.key, getToken: function(req){
+    var token = null || req.body.token || req.query.token || req.headers['x-access-token'];
+    return token;
+}}));
+
+app.post('/rejectInvite', function (req, res) {
+    debug('Router:RejectInvite: %s', req.body);
+    var input = req.body;
+    if(!(input.productId && input.contactId)) {
+        var response = {error:"Product Id or Contact Id not in request",errorCode:"ROU111"};
+        res.json(response);
+        return;
+    }
+    if(input.contactId == req.user.mobile) {
+        var response = {error:"Logged In user and contactId cannot be the same",errorCode:"ROU112"};
+        res.json(response);
+        return;
+    }
+    var contact = {
+        accountId : req.user.mobile,
+        productId : input.productId,
+        contactId : input.contactId.toLowerCase(), //invited
+        type: 'rejectInvite'
+    }
+    var account;
+    Account.get(contact.accountId)
+    .then(function(){
+        var d = Q.defer();
+        AccountProduct.getAccountProduct(contact.accountId, contact.productId)
+        .then(function(){d.resolve();})
+        .catch(function(error){d.reject(error)})
+        return d.promise;
+    }).then(function(){
+        var d = Q.defer();
+        AccountProductContact.rejectInvite(contact.accountId, contact.productId, contact.contactId)
+        .then(function(){d.resolve();})
+        .catch(function(error){d.reject(error)})
+        return d.promise;
+    }).then(function(){
+        var d = Q.defer();
+        contact.invited = 2;
+        Account.isOnline(contact.contactId)
+        .then(function(response){
+            socketSend(response.isOnline,response.socketId,response.deviceToken,contact);
+            d.resolve(contact);
+        }).catch(function(error){d.reject(error)});
+        return d.promise;
+    }).then(function(response){res.json({invited:2})})
+    .catch(function(error){res.json(error)});
+});
+
+app.use('/deleteContact', expressJwt({secret: secret.key, getToken: function(req){
+    var token = null || req.body.token || req.query.token || req.headers['x-access-token'];
+    return token;
+}}));
+
+app.post('/deleteContact', function(req, res) {
+    debug('Router:DeleteContact: %s',req.body);
+    var input = req.body;
+    if(!(input.productId && input.contactId)) {
+        var response = {error:"Product Id or Contact Id not in request",errorCode:"ROU109"};
+        res.json(response);
+        return;
+    }
+    if(input.contactId == req.user.mobile) {
+        var response = {error:"User Id and contactId cannot be the same",errorCode:"ROU110"};
         res.json(response);
         return;
     }
@@ -276,7 +373,7 @@ app.post('/receipt', function(req, res) {
         productId : input.productId,
         contactId : input.contactId,
         messageId : input.messageId,
-        messageType : "MESSAGE_RECEIPT"
+        type : "receipt"
     }
     Account.isOnline(input.contactId)
     .then(function(response){
@@ -300,13 +397,14 @@ app.get('/dashboard', function(req, res) {
             AccountProductContact.getInvites(req.user.mobile, contacts.length)
             .then(function(invites){
                 var response = {
-                'contacts':contacts
-            };
+                    'contacts':contacts,
+                    'invites':invites
+                };
+            });
             d.resolve(response);
         }).catch(function(err){d.reject(err)});
         return d.promise;
-    })
-    .then(function(response){res.json(response)})
+    }).then(function(response){res.json(response)})
     .catch(function(error){res.json(error)});
 }); 
 
@@ -332,6 +430,4 @@ app.post('/image', function (req, res) {
         return d.promise;
     }).then(function(response){res.json(response)})
     .catch(function(error){res.json(error)});
-    
 });
-

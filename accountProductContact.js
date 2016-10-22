@@ -76,32 +76,41 @@ AccountProductContacts.prototype.getAccountProductContacts = function(accountId)
     return d.promise;    
 };
 
-AccountProductContacts.prototype.getOrFail = function(accountId, productId, contactId){
+AccountProductContacts.prototype.get = function(accountId, productId, contactId){
     debug('AccountProductContacts:Get: %s : %s : %s', accountId, productId, contactId);
     var d = Q.defer();
     AccountProductContact.findOne({ where: { accountId:accountId, productId:productId, contactId:contactId } }).then(function(contact) {
         if(contact) {
             d.resolve(contact);
         } else {
-        	d.reject({'error':'No relation found','errorCode':'CNT103'});
+        	d.reject({'error':'No contact found','errorCode':'CNT103'});
         }        
-    }).catch(function(){
-        debug('AccountProductContacts:GetAccountProductContacts: failed to get contacts');
-        d.reject({'error':'AccountProductContacts.GetAccountProductContacts','errorCode':'CNT104'});
     });
     return d.promise;    
 };
 
-
-AccountProductContacts.prototype.updateActiveStatus = function(contactId){
-    debug('AccountProductContacts:UpdateActiveStatus: %s', contactId);
+AccountProductContacts.prototype.acceptInvite = function(accountId, productId, contactId){
+    debug('AccountProductContacts:AcceptInvite: %s, %s, %s', accountId, productId, contactId);
     var d = Q.defer();
-    AccountProductContact.update({active:true}, {where:{contactId:contactId}}).then(function(){
-        debug('AccountProductContacts.updateActiveStatus : Successfully updated active status');
+    AccountProductContact.update({invited:1}, {where:{accountId:accountId, productId:productId, contactId:contactId}}).then(function(){
+        debug('AccountProductContacts.AcceptInvite : Successfully updated invited status to accepted');
         d.resolve();
     }).catch(function(err){
         debug(err);
-        d.reject({'error':'AccountProductContacts.UpdateActiveStatus','errorCode':'CNT105'});
+        d.reject({'error':'AccountProductContacts.AcceptInvite','errorCode':'CNT105'});
+    });         
+    return d.promise;    
+};
+
+AccountProductContacts.prototype.rejectInvite = function(accountId, productId, contactId){
+    debug('AccountProductContacts:RejectInvite: %s, %s, %s', accountId, productId, contactId);
+    var d = Q.defer();
+    AccountProductContact.update({invited:2}, {where:{accountId:accountId, productId:productId, contactId:contactId}}).then(function(){
+        debug('AccountProductContacts.RejectInvite : Successfully updated invited status to rejected');
+        d.resolve();
+    }).catch(function(err){
+        debug(err);
+        d.reject({'error':'AccountProductContacts.RejectInvite','errorCode':'CNT106'});
     });         
     return d.promise;    
 };

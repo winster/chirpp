@@ -42,12 +42,11 @@ wsServer.on("connection", function(websocket) {
     websocket.accountId = user.mobile;
     debug("websocket connection open %s %s", user.mobile, socketId);
     account.updateSocketId(user.mobile, socketId);
-    var result = {'result': 'success'};
-    websocket.send(JSON.stringify(result), function() {  })
+    websocket.send('success', function() {  })
     websocket.on('message', function incoming(message) {
         debug('received: %s', message);
         var accountId = this.accountId;
-        if(message=="ping") {
+        if(message=="P") {
             account.ping(accountId);    
         } else {
             var json = JSON.parse(message);

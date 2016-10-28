@@ -15,7 +15,7 @@ var AccountProduct = database.define('account_product', {
         type: Sequelize.STRING,
         primaryKey: true
     },
-    role: {//0 for subscriber, 1 for provider, 2 for colleague. Same as contactRole in AccountProductContact
+    role: {//0 for subscriber, 1 for provider, -1 not mapped
         type: Sequelize.STRING
     }
 }, {
@@ -56,16 +56,24 @@ AccountProducts.prototype.addProducts = function(mobile, products){
             accountId : mobile,
             role : product.role
         };
-        debug('AccountProducts:AddProducts: product %s', product);
-        promises.push(this.addProduct(accountProduct));
+        if(accountProduct.productId && accountProduct.role) {
+            debug('AccountProducts:AddProducts: product %s', JSON.stringify(product));
+            promises.push(this.addProduct(accountProduct));
+        } else {
+            debug('AccountProducts:AddProducts: skipping record %s', JSON.stringify(product));
+        }
     }
-    Q.all(promises).then(function(){
-        debug('AccountProducts:AddProducts: successfully added all products by skipping existing records');
-        d.resolve(mobile);   
-    }).catch(function(err){
-        debug('AccountProducts:AddProducts: failed to add all products %s',err);
-        d.reject({'error':'AccountProducts.AddProducts '+err.error,'errorCode':'PRD101'});
-    });         
+    if(promises.length) {
+        Q.all(promises).then(function(){
+            debug('AccountProducts:AddProducts: successfully added all products by skipping existing records');
+            d.resolve();   
+        }).catch(function(err){
+            debug('AccountProducts:AddProducts: failed to add all products %s',err);
+            d.reject({'error':'AccountProducts.AddProducts '+err.error,'errorCode':'PRD101'});
+        });         
+    } else {
+        d.reject({'error':'productId or role is missing'});   
+    }
     return d.promise;    
 };
 

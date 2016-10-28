@@ -22,6 +22,12 @@ var Account = database.define('account', {
     companyName:{
         type: Sequelize.STRING
     },
+    companyEmail:{
+        type: Sequelize.STRING
+    },
+    companyMobile:{
+        type: Sequelize.STRING
+    },
     companyAddress:{
         type: Sequelize.STRING
     },
@@ -42,6 +48,12 @@ var Account = database.define('account', {
     },
     logoUrl:{
         type: Sequelize.STRING
+    },
+    imageUrlUpdatedAt:{
+        type: Sequelize.DATE
+    },
+    logoUrlUpdatedAt:{
+        type: Sequelize.DATE
     }
 }, {
   freezeTableName: true,
@@ -215,8 +227,10 @@ Accounts.prototype.updateImageUrl = function(mobile, imageUrl, imageType){
     var updateObj = {};
     if(imageType=='profile') {
         updateObj.imageUrl = imageUrl;
+        updateObj.imageUrlUpdatedAt = new Date();
     } else if(imageType=='logo') {
         updateObj.logoUrl = imageUrl;
+        updateObj.logoUrlUpdatedAt = new Date();
     }
     Account.update(updateObj, {where:{mobile:mobile}}).then(function(){
         debug('Success Account.update', 'Account:UpdateImageUrl');
@@ -246,6 +260,39 @@ Accounts.prototype.getAccountDetails = function(accountIds){
         }
     })
     return d.promise;    
+};
+
+Accounts.prototype.updateDetails = function(mobile, input){
+    debug('Account:UpdateDetails: %s:', JSON.stringify(input));
+    var d = Q.defer();
+    var updateObj = {};
+    if(input.name) {
+        updateObj.name = input.name;
+    }
+    if(input.email) {
+        updateObj.email = input.email;
+    }
+    if(input.companyName) {
+        updateObj.companyName = input.companyName;
+    }
+    if(input.companyEmail) {
+        updateObj.companyEmail = input.companyEmail;
+    }
+    if(input.companyMobile) {
+        updateObj.companyMobile = input.companyMobile;
+    }
+    if(input.companyAddress) {
+        updateObj.companyAddress = input.companyAddress;
+    }
+
+    Account.update(updateObj, {where:{mobile:mobile}}).then(function(){
+        debug('Success Account.update', 'Account:UpdateDetails');
+        d.resolve({'result':'success'});
+    }).catch(function(){
+        debug('Error Account.update', 'Account:UpdateDetails');
+        d.reject({'error':'Account.update','errorCode':'ACT114'});
+    });         
+    return d.promise;
 };
 
 exports = module.exports = new Accounts();

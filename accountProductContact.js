@@ -26,10 +26,10 @@ var AccountProductContact = database.define('account_product_contact', {
         type: Sequelize.STRING
     },
     contactRole: {//0 for subscriber, 1 for provider, 2 for colleague. 
-        type: Sequelize.STRING
+        type: Sequelize.INTEGER
     },
     status: { //0 for usual, 1 for invite sent, 2 for invite received, 3 for invite got rejected, 4 for invite rejected
-    	type: Sequelize.STRING 
+    	type: Sequelize.INTEGER 
     },
     companyName: {
         type: Sequelize.STRING 
@@ -49,11 +49,11 @@ var AccountProductContact = database.define('account_product_contact', {
     logoUrl:{
         type: Sequelize.STRING
     },
-    imageUrlUpdatedAt:{
-        type: Sequelize.DATE
+    imageUrlIndex:{
+        type: Sequelize.INTEGER
     },
-    logoUrlUpdatedAt:{
-        type: Sequelize.DATE
+    logoUrlIndex:{
+        type: Sequelize.INTEGER
     }
 }, {
   freezeTableName: true
@@ -67,7 +67,7 @@ AccountProductContacts.prototype.addContact = function(user1, user2, contact){
     debug('AccountProductContacts:AddContact:');
     var d = Q.defer();
     var that = this;
-    that.get(user1.mobile, contact.productId, user2.mobile)
+    that.get(user1.mobile, contact.productId, contact.contactId)
     .then(function(){
         debug('AccountProductContacts:AddContact:contact already exist');
         d.reject({'error':'contact already added'});
@@ -76,6 +76,7 @@ AccountProductContacts.prototype.addContact = function(user1, user2, contact){
         var user1Status = 1;
         that.addUser2(user1, user2, contact)
         .then(function(user2Status){
+            debug('AccountProductContacts:AddContact:Before adding contact for user1');
             if(user2Status==4){
                 user1Status=3;
             } else if(user2Status==2){
@@ -96,10 +97,17 @@ AccountProductContacts.prototype.addContact = function(user1, user2, contact){
                 user1Contact.companyEmail = user2.companyEmail;
                 user1Contact.companyMobile = user2.companyMobile;
                 user1Contact.companyAddress = user2.companyAddress;
+            } else {
+                user1Contact.name = contact.name;
             }
             AccountProductContact.create(user1Contact)
-            .then(function(){d.resolve(user2Status);})
-            .catch(function(){d.reject();})
+            .then(function(){
+                var userStatus = {
+                    'user1Status':user1Status,
+                    'user2Status':user2Status
+                };
+                d.resolve(userStatus);
+            }).catch(function(){d.reject();})
         }).catch(function(){d.reject();})
     });
     return d.promise;    
@@ -191,33 +199,40 @@ AccountProductContacts.prototype.deleteContact = function(accountId, productId, 
         that.get(contactId, productId, accountId)
         .then(function(){
             debug('AccountProductContacts.DeleteContact : user 2 contact exists');
-            AccountProductContact.update({status:3}, {where:{accountId:accountId, productId:productId, contactId:contactId, status:[0,1,2,3]}})
-            .then(function(){
+            AccountProductContact.update({status:3}, {where:{accountId:contactId, productId:productId, contactId:accountId, status:[0,1,2,3]}, returning:true})
+            .then(function(response){
                 debug('AccountProductContacts.DeleteContact : user 2 contact status updated to 3 except if it was 4');
                 AccountProductContact.destroy({where: {accountId:accountId, productId:productId, contactId:contactId}})
                 .then(function() {
     	            debug('AccountProductContacts.DeleteContact : user 1 contact deleted');
-                    d.resolve({'result':'success'});            	
+                    var status = -1;
+                    if(response.length==2 && response[1].length==1){
+                        status = response[1][0].status;
+                    }
+                    d.resolve(status);            	
                 }).catch(function(err){
                     debug('AccountProductContacts.DeleteContact : user 1 contact failed to delete', err);
                     d.reject({'error':'AccountProductContacts.deleteContact','errorCode':'CNT112'});           
                 });
-            }).catch(function(err){d.reject({'error':'AccountProductContacts.DeleteContact','errorCode':'CNT113'});});
+            }).catch(function(err){
+                debug('AccountProductContacts.DeleteContact : error updating contact %s', err);
+                d.reject({'error':'AccountProductContacts.DeleteContact','errorCode':'CNT113'});
+            });
         }).catch(function(err){d.reject({'error':'AccountProductContacts.DeleteContact','errorCode':'CNT114'});});
     }).catch(function(err){d.reject({'error':'AccountProductContacts.DeleteContact','errorCode':'CNT115'});});
     return d.promise;    
 };
 
-AccountProductContacts.prototype.updateImageUrl = function(contactId, imageUrl, imageType){
+AccountProductContacts.prototype.updateImageUrl = function(contactId, imageUrl, imageType, accountUpdateObj){
     debug('AccountProductContacts:updateImageUrl: %s %s %s', contactId, imageUrl, imageType);
     var d = Q.defer();
     var updateObj = {};
     if(imageType=='profile') {
         updateObj.imageUrl = imageUrl;
-        updateObj.imageUrlUpdatedAt = new Date();
+        updateObj.imageUrlIndex = accountUpdateObj.imageUrlIndex;
     } else if(imageType=='logo') {
         updateObj.logoUrl = imageUrl;
-        updateObj.logoUrlUpdatedAt = new Date();
+        updateObj.logoUrlIndex = accountUpdateObj.logoUrlIndex;
     }
     AccountProductContact.update(updateObj, {where:{contactId:contactId}}).then(function(){
         debug('AccountProductContacts.updateImageUrl : Successfully updated image urls');
@@ -239,11 +254,11 @@ AccountProductContacts.prototype.addUser2 = function(user1, user2, contact){
     debug('AccountProductContacts:addUser2:');
     var d = Q.defer();
     var status = 2;
-    this.get(user2.mobile, contact.productId, user1.mobile)
+    this.get(contact.contactId, contact.productId, user1.mobile)
     .then(function(contactModel){ // this row exists only if user1 has deleted user2, which is considered as reject
         if(contactModel.status==3){ //in the previous request, user2 had accepted invite
             status = 2;
-            AccountProductContact.update({status:status}, {where:{accountId:user2.mobile, productId:contact.productId, contactId:user1.mobile}})
+            AccountProductContact.update({status:status}, {where:{accountId:contact.contactId, productId:contact.productId, contactId:user1.mobile}})
             .then(function(){
                 debug('AccountProductContacts.addUser2 : Successfully updated status of user 2');
                 d.resolve(status);
@@ -270,7 +285,10 @@ AccountProductContacts.prototype.addUser2 = function(user1, user2, contact){
             companyAddress: user1.companyAddress
         }
         AccountProductContact.create(user2Contact)
-        .then(function(){d.resolve(status);})
+        .then(function(){
+            debug('AccountProductContacts.addUser2 : Successfully created contact entry for user 2');
+            d.resolve(status);
+        })
         .catch(function(){d.reject();})
     });
     return d.promise;    

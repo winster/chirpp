@@ -8,16 +8,18 @@ const debug = require('debug')('chirpp');
 var Sms = function(){};
 
 Sms.prototype.send = function(account) {
-    debug('Send:'+JSON.stringify(account), 'SMS');
+    debug('SMS:Send:'+JSON.stringify(account));
     var d = Q.defer();
-    var data = "username=wtjose@gmail.com&hash=8be293b97b1f2e41adbf4c2257882fe024354f85"+
-               "&message="+account.otp+" is OTP to register with Chirpee"+
-               "&sender=TXTLCL&numbers="+account.mobile+"&test=true";
+    /*var data = "username=wtjose@gmail.com&hash=8be293b97b1f2e41adbf4c2257882fe024354f85"+
+               "&message="+account.otp+" is the OTP to access your Chirpee account. Welcome to Chirpee!"+
+               "&sender=CHIRPE&numbers="+account.mobile;
 
-    /*request('https://api.textlocal.in/send?'+data, function(error, response, body) {
+    request('https://api.textlocal.in/send?'+data, function(error, response, body) {
         if (!error && response.statusCode == 200) {
-            d.resolve(JSON.parse(body));
+            debug('SMS:Send  success: %s', JSON.stringify(body));
+            d.resolve();
         } else {
+            debug('SMS:Send  error: %s', error);
             d.reject(error);
         }
     });*/
@@ -25,21 +27,22 @@ Sms.prototype.send = function(account) {
     return d.promise;
 };
 
-Sms.prototype.invite = function(to, from) {
-    debug('SMS:Invite: to %s , from %s', to, from);
+Sms.prototype.invite = function(from, fromNumber, toNumber) {
+    debug('SMS:Invite: to %s , from %s', toNumber, from);
     var d = Q.defer();
     var data = "username=wtjose@gmail.com&hash=8be293b97b1f2e41adbf4c2257882fe024354f85"+
-               "&message="+from+" has invited you to Chirpee. Download from http://www.google.com"+
-               "&sender=TXTLCL&numbers="+to+"&test=true";
+               "&message="+from+" has invited you to Chirpee. Download app from https://drive.google.com/open?id=0B9VGrPjU3g7hWWt5c0RrRUlveHc"+
+               "&sender=CHIRPE&numbers="+toNumber;
 
-    /*request('https://api.textlocal.in/send?'+data, function(error, response, body) {
+    request('https://api.textlocal.in/send?'+data, function(error, response, body) {
         if (!error && response.statusCode == 200) {
             d.resolve(JSON.parse(body));
         } else {
+            debug('SMS:Send  error: %s', error);
             d.reject(error);
         }
-    });*/
-    d.resolve({});
+    });
+    //d.resolve({});
     return d.promise;
 };
 

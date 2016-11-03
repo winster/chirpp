@@ -139,25 +139,6 @@ app.post('/deviceToken', function(req, res) {
     .catch(function(error){res.json(error)});
 });    
 
-app.use('/socketId', expressJwt({secret: secret.key, getToken: function(req){
-    var token = null || req.body.token || req.query.token || req.headers['x-access-token'];
-    return token;
-}}));
-
-app.post('/socketId', function(req, res) {
-    debug('SocketId','Router');
-    var input = req.body;
-    if(!input.socketId) {
-        var response = {error:"No socket Id in request",errorCode:"ROU105"};
-        res.json(response);
-        return;
-    }
-    Account.updateSocketId(req.user.mobile, input.socketId)
-    .then(function(response){res.json(response)})
-    .catch(function(error){res.json(error)});
-});    
-
-
 app.use('/addContact', expressJwt({secret: secret.key, getToken: function(req){
     var token = null || req.body.token || req.query.token || req.headers['x-access-token'];
     return token;
@@ -183,7 +164,7 @@ app.post('/addContact', function(req, res) {
         accountId : req.user.mobile,
         productId : input.productId,
         contactId : input.contactId.toLowerCase(),  //handle mobile number format
-        contactName : input.contactName,
+        name : input.name,
         contactRole : input.contactRole
     }
     var user1Entity,user2Entity;
@@ -233,38 +214,43 @@ app.post('/addContact', function(req, res) {
         return d.promise;
     }).then(function(){
         var d = Q.defer();
-        debug("Router:addContact:before adding contact");
         AccountProductContact.addContact(user1Entity,user2Entity,contact)
-        .then(function(response){d.resolve()})
+        .then(function(userStatus){d.resolve(userStatus)})
         .catch(function(error){d.reject(error)});
         return d.promise;
-    }).then(function(user2Status){
+    }).then(function(userStatus){
         var d = Q.defer();
+        debug("Router:addContact:before sending the notification %s", JSON.stringify(userStatus));
         var payload = {
-            productId:contact.productId,
-            contactId:contact.accountId,
-            name:user1.name,
-            email:user1.email,
-            status:user2Status,
-            companyName:user1.companyName,
-            companyEmail:user1.companyEmail,
-            companyMobile:user1.companyMobile,
-            companyAddress:user1.companyAddress,
-            imageUrl:user1.imageUrl,
-            logoUrl:user1.logoUrl,
-            type:'invite'
+            pid:contact.productId,
+            cid:contact.accountId,
+            t:'contact',
+            d: {
+                productId:contact.productId,
+                contactId:contact.accountId,
+                name:user1Entity.name,
+                email:user1Entity.email,
+                status:userStatus.user2Status,
+                companyName:user1Entity.companyName,
+                companyEmail:user1Entity.companyEmail,
+                companyMobile:user1Entity.companyMobile,
+                companyAddress:user1Entity.companyAddress,
+                imageUrl:user1Entity.imageUrl,
+                logoUrl:user1Entity.logoUrl
+            }
         }
-        Account.isOnline(user1.contactId)
+        contact.status = userStatus.user1Status;
+        Account.isOnline(contact.contactId)
         .then(function(response){
             socketSend(response.isOnline,response.socketId,response.deviceToken,payload);
             d.resolve(contact);
         }).catch(function(error){
-            Sms.invite(user1.contactId,user1.accountId)
-            .then(function(response){d.resolve()})
+            Sms.invite(user1Entity.name, user1Entity.accountId, contact.contactId)
+            .then(function(response){d.resolve(contact)})
             .catch(function(error){d.resole()});
         });
         return d.promise;
-    }).then(function(response){res.json({'result':'success'})})
+    }).then(function(response){res.json(response)})
     .catch(function(error){res.json(error)});
 });
 
@@ -306,16 +292,20 @@ app.post('/acceptInvite', function (req, res) {
         return d.promise;
     }).then(function(){
         var d = Q.defer();
-        var payload = contact;
-        payload.status = 0;
-        payload.type='invite';
+        contact.status = 5;
+        var payload = {
+            pid:contact.productId,
+            cid:contact.accountId,
+            t:'contact',
+            d: contact
+        }
         Account.isOnline(contact.contactId)
         .then(function(response){
             socketSend(response.isOnline,response.socketId,response.deviceToken,payload);
             d.resolve();
         }).catch(function(error){d.reject(error)});
         return d.promise;
-    }).then(function(response){res.json({'result':'success'})})
+    }).then(function(response){res.json({'contactId':contact.contactId,'productId':contact.productId})})
     .catch(function(error){res.json(error)});
 });
 
@@ -360,14 +350,14 @@ app.post('/rejectInvite', function (req, res) {
         var d = Q.defer();
         var payload = contact;
         payload.status=3;
-        payload.type='invite';
+        payload.type='contact';
         Account.isOnline(contact.contactId)
         .then(function(response){
             socketSend(response.isOnline,response.socketId,response.deviceToken,payload);
             d.resolve();
         }).catch(function(error){d.reject(error)});
         return d.promise;
-    }).then(function(response){res.json({'result':'success'})})
+    }).then(function(response){res.json({'contactId':contact.contactId,'productId':contact.productId})})
     .catch(function(error){res.json(error)});
 });
 
@@ -377,7 +367,7 @@ app.use('/deleteContact', expressJwt({secret: secret.key, getToken: function(req
 }}));
 
 app.post('/deleteContact', function(req, res) {
-    debug('Router:DeleteContact: %s',req.body);
+    debug('Router:DeleteContact');
     var input = req.body;
     if(!(input.productId && input.contactId)) {
         var response = {error:"Product Id or Contact Id not in request",errorCode:"ROU109"};
@@ -395,7 +385,19 @@ app.post('/deleteContact', function(req, res) {
         contactId : input.contactId            
     }
     AccountProductContact.deleteContact(contact.accountId, contact.productId, contact.contactId)
-    .then(function(response){res.json(response)})
+    .then(function(status){
+        debug("before sending payload %s", status);
+        var d = Q.defer();
+        var payload = contact;
+        payload.status=status;
+        payload.type='contact';
+        Account.isOnline(contact.contactId)
+        .then(function(response){
+            socketSend(response.isOnline,response.socketId,response.deviceToken,payload);
+            d.resolve();
+        }).catch(function(error){d.resolve();});
+        return d.promise;
+    }).then(function(response){res.json({'contactId':contact.contactId,'productId':contact.productId})})
     .catch(function(error){res.json(error)});    
 });
 
@@ -464,10 +466,10 @@ app.post('/image', function (req, res) {
         res.json(response);
         return;
     }
-    Account.updateImageUrl(req.user.mobile,input.imageUrl, input.imageType)
-    .then(function(response){
+    Account.updateImageUrl(req.user.mobile, input.imageUrl, input.imageType)
+    .then(function(updateObj){
         var d = Q.defer();
-        AccountProductContact.updateImageUrl(req.user.mobile,input.imageUrl, input.imageType)
+        AccountProductContact.updateImageUrl(req.user.mobile, input.imageUrl, input.imageType, updateObj)
         .then(function(response){d.resolve(response);})
         .catch(function(err){d.reject(err)});
         return d.promise;

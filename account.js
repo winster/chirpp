@@ -49,11 +49,11 @@ var Account = database.define('account', {
     logoUrl:{
         type: Sequelize.STRING
     },
-    imageUrlUpdatedAt:{
-        type: Sequelize.DATE
+    imageUrlIndex:{
+        type: Sequelize.INTEGER
     },
-    logoUrlUpdatedAt:{
-        type: Sequelize.DATE
+    logoUrlIndex:{
+        type: Sequelize.INTEGER
     }
 }, {
   freezeTableName: true,
@@ -224,21 +224,27 @@ Accounts.prototype.updateImageUrl = function(mobile, imageUrl, imageType){
     debug('Account:UpdateImageUrl: %s, %s, %s:', mobile, imageUrl, imageType);
     var d = Q.defer();
     debug('Before Account.update', 'Account:UpdateImageUrl');
-    var updateObj = {};
-    if(imageType=='profile') {
-        updateObj.imageUrl = imageUrl;
-        updateObj.imageUrlUpdatedAt = new Date();
-    } else if(imageType=='logo') {
-        updateObj.logoUrl = imageUrl;
-        updateObj.logoUrlUpdatedAt = new Date();
-    }
-    Account.update(updateObj, {where:{mobile:mobile}}).then(function(){
-        debug('Success Account.update', 'Account:UpdateImageUrl');
-        d.resolve({'result':'success'});
-    }).catch(function(){
-        debug('Error Account.update', 'Account:UpdateImageUrl');
-        d.reject({'error':'Account.update','errorCode':'ACT113'});
-    });         
+    this.get(mobile)
+    .then(function(account){
+        var updateObj = {};
+        if(imageType=='profile') {
+            updateObj.imageUrl = imageUrl;
+            updateObj.imageUrlIndex = account.imageUrlIndex + 1;
+        } else if(imageType=='logo') {
+            updateObj.logoUrl = imageUrl;
+            updateObj.logoUrlIndex = account.logoUrlIndex + 1;
+        }
+        Account.update(updateObj, {where:{mobile:mobile}}).then(function(){
+            debug('Success Account.update', 'Account:UpdateImageUrl');
+            d.resolve(updateObj);
+        }).catch(function(){
+            debug('Error Account.update', 'Account:UpdateImageUrl');
+            d.reject({'error':'Account.update','errorCode':'ACT113'});
+        });       
+    }).catch(function(err){
+        debug('Account:UpdateImageUrl: Error in Account.get');
+        d.reject({'error':'Account.get','errorCode':'ACT114'});
+    })  
     return d.promise;
 };
 

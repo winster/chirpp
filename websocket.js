@@ -2,8 +2,10 @@ var http = require('http'),
 	WebSocketServer = require("ws").Server,
     shortid = require('shortid'),
     jwt = require('jsonwebtoken'),
-    account = require('./account'),
-    //gcm = require("./gcm"),
+    Account = require('./account'),
+    AccountProductContact = require('./accountProductContact'),
+    MessageHistory = require('./messageHistory'),
+    gcm = require("./gcm"),
     secret = require('./secret.json');
 
 const debug = require('debug')('chirpp');
@@ -41,23 +43,36 @@ wsServer.on("connection", function(websocket) {
     websocket.socketId = socketId;
     websocket.accountId = user.mobile;
     debug("websocket connection open %s %s", user.mobile, socketId);
-    account.updateSocketId(user.mobile, socketId);
+    Account.updateSocketId(user.mobile, socketId)
+    .then(function(res){debug("successfully updated socketId %s", JSON.stringify(res))})
+    .catch(function(err){debug("error in updating socketId %s", JSON.stringify(err))});
     websocket.send('success', function() {  })
     websocket.on('message', function incoming(message) {
         debug('received: %s', message);
         var accountId = this.accountId;
         if(message=="P") {
-            account.ping(accountId);    
+            Account.ping(accountId)
+            .then(AccountProductContact.ping);
         } else {
             var json = JSON.parse(message);
-            account.isOnline(json.cid).then(function(response){
-                json.cid=accountId;
+            Account.isOnline(json.cid).then(function(response){
+                debug("Account isOnline: %s", response.isOnline);
                 if(response.isOnline && clients[response.socketId]) {
+                    debug("Sending message via websocket");
+                    json.cid=accountId;
                     clients[response.socketId].send(JSON.stringify(json), function(){});
                 } else {
-                    /*gcm(response.deviceToken, message, function(error){
-                        //handle gcm error callbacks
-                    });*/
+                    json.aid = json.cid;
+                    json.cid = accountId;
+                    MessageHistory.save(json)
+                    .then(function(res){
+                        debug("Sending message via gcm");
+                        gcm(response.deviceToken, message, function(error){
+                            //handle gcm error callbacks
+                        });
+                    }).catch(function(err){
+                        debug("MessageHistory.save failed %s", err);
+                    });
                 }
             });
         }
@@ -68,14 +83,28 @@ wsServer.on("connection", function(websocket) {
     });
 });
 
-var wsSend = function(isOnline, socketId, deviceToken, message) {
-    debug("Websocket:send message %s %s %s %s", isOnline, socketId, deviceToken, message);
+var wsSend = function(accountId, isOnline, socketId, deviceToken, message) {
+    debug("Websocket:send message %s %s %s %s", isOnline, socketId, deviceToken, JSON.stringify(message));
     if(isOnline && clients[socketId]) {
-        clients[socketId].send(message, function(){});
+        debug("Websocket Client available")
+        clients[socketId].send(JSON.stringify(message), function(){});
     }  else {
-        /*gcm(response.deviceToken, message, function(error){
-            //handle gcm error callbacks
-        });*/
+        debug("Websocket Client not available and using GCM")
+        if(message.t!='contact'){
+            message.aid = accountId;
+            MessageHistory.save(message)
+            .then(function(res){
+                gcm(response.deviceToken, message, function(error){
+                    //handle gcm error callbacks
+                });
+            }).catch(function(err){
+                debug("MessageHistory.save failed %s", err);
+            });
+        } else {
+            gcm(response.deviceToken, message, function(error){
+                //handle gcm error callbacks
+            });
+        }
     }
 }
 

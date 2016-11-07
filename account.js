@@ -153,10 +153,10 @@ Accounts.prototype.updateAccessToken = function(accountModel, accessToken){
 };
 
 Accounts.prototype.updateDeviceToken = function(mobile, deviceToken){
-    debug('Account:UpdateDeviceToken: %s, %s:', mobile, deviceToken);
+    debug('Account:UpdateDeviceToken: %s, %s', mobile, deviceToken);
     var d = Q.defer();
     debug('Before Account.update', 'Account:UpdateDeviceToken');
-    Account.update({deviceToken:deviceToken}, {where:{mobile:mobile}}).then(function(){
+    Account.update({'deviceToken':deviceToken}, {where:{'mobile':mobile}}).then(function(){
         debug('Success Account.update', 'Account:UpdateDeviceToken');
         d.resolve({'result':'success'});
     }).catch(function(){
@@ -167,10 +167,10 @@ Accounts.prototype.updateDeviceToken = function(mobile, deviceToken){
 };
 
 Accounts.prototype.updateSocketId = function(mobile, socketId){
-    debug('Account:UpdateSocketId: %s, %s:', mobile, socketId);
+    debug('Account:UpdateSocketId: %s, %s', mobile, socketId);
     var d = Q.defer();
     debug('Before Account.update', 'Account:UpdateSocketId');
-    Account.update({socketId:socketId}, {where:{mobile:mobile}}).then(function(){
+    Account.update({'socketId':socketId}, {where:{'mobile':mobile}}).then(function(){
         debug('Success Account.update', 'Account:UpdateSocketId');
         d.resolve({'result':'success'});
     }).catch(function(){
@@ -186,9 +186,9 @@ Accounts.prototype.ping = function(mobile){
     debug('Before Account.update', 'Account:Ping');
     Account.update({}, {where:{mobile:mobile}}).then(function(){
         debug('Success Account.update', 'Account:Ping');
-        d.resolve({'result':'success'});
+        d.resolve(mobile);
     }).catch(function(){
-        debug('Error Account.update', 'Account:UpdateSocketId');
+        debug('Error Account.update', 'Account:Ping');
         d.reject({'error':'Account.update','errorCode':'ACT111'});
     });         
     return d.promise;
@@ -200,7 +200,7 @@ Accounts.prototype.isOnline = function(mobile){
     debug('Before Account.findOne', 'Account:IsOnline');
     Account.findOne({ where: {mobile: mobile} }).then(function(account) {
         if(account) {
-            debug('account exists', 'Account:Get');
+            debug('account exists %s',account.socketId);
             debug('Date.now() %s', Date.now());
             debug('Date.parse(%s) %s', account.updatedAt, Date.parse(account.updatedAt));
             debug('Difference %s', Date.now()-Date.parse(account.updatedAt));

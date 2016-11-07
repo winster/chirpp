@@ -4,6 +4,7 @@ var app = require('./app'),
     Account = require('./account'),
     AccountProduct = require('./accountProduct'),
     AccountProductContact = require('./accountProductContact'),
+    MessageHistory = require('./messageHistory'),
     expressJwt = require('express-jwt'),
     Q = require("q"),
     jwt = require('jsonwebtoken'),
@@ -221,28 +222,29 @@ app.post('/addContact', function(req, res) {
     }).then(function(userStatus){
         var d = Q.defer();
         debug("Router:addContact:before sending the notification %s", JSON.stringify(userStatus));
+        var contactObj = {
+            productId:contact.productId,
+            contactId:contact.accountId,
+            name:user1Entity.name,
+            email:user1Entity.email,
+            status:userStatus.user2Status,
+            companyName:user1Entity.companyName,
+            companyEmail:user1Entity.companyEmail,
+            companyMobile:user1Entity.companyMobile,
+            companyAddress:user1Entity.companyAddress,
+            imageUrl:user1Entity.imageUrl,
+            logoUrl:user1Entity.logoUrl
+        };
         var payload = {
             pid:contact.productId,
             cid:contact.accountId,
             t:'contact',
-            d: {
-                productId:contact.productId,
-                contactId:contact.accountId,
-                name:user1Entity.name,
-                email:user1Entity.email,
-                status:userStatus.user2Status,
-                companyName:user1Entity.companyName,
-                companyEmail:user1Entity.companyEmail,
-                companyMobile:user1Entity.companyMobile,
-                companyAddress:user1Entity.companyAddress,
-                imageUrl:user1Entity.imageUrl,
-                logoUrl:user1Entity.logoUrl
-            }
+            d: JSON.stringify(contactObj)
         }
         contact.status = userStatus.user1Status;
         Account.isOnline(contact.contactId)
         .then(function(response){
-            socketSend(response.isOnline,response.socketId,response.deviceToken,payload);
+            socketSend(contact.contactId,response.isOnline,response.socketId,response.deviceToken,payload);
             d.resolve(contact);
         }).catch(function(error){
             Sms.invite(user1Entity.name, user1Entity.accountId, contact.contactId)
@@ -292,20 +294,26 @@ app.post('/acceptInvite', function (req, res) {
         return d.promise;
     }).then(function(){
         var d = Q.defer();
-        contact.status = 5;
+        var contactObj = {
+            contactId:contact.accountId,
+            productId:contact.productId,
+            status:5
+        }
         var payload = {
             pid:contact.productId,
             cid:contact.accountId,
             t:'contact',
-            d: contact
+            d: JSON.stringify(contactObj)
         }
         Account.isOnline(contact.contactId)
         .then(function(response){
-            socketSend(response.isOnline,response.socketId,response.deviceToken,payload);
             d.resolve();
+            socketSend(contact.contactId,response.isOnline,response.socketId,response.deviceToken,payload);
         }).catch(function(error){d.reject(error)});
         return d.promise;
-    }).then(function(response){res.json({'contactId':contact.contactId,'productId':contact.productId})})
+    }).then(function(response){
+        debug("acceot invite : before sending response");
+        res.json({'contactId':contact.contactId,'productId':contact.productId})})
     .catch(function(error){res.json(error)});
 });
 
@@ -348,13 +356,21 @@ app.post('/rejectInvite', function (req, res) {
         return d.promise;
     }).then(function(){
         var d = Q.defer();
-        var payload = contact;
-        payload.status=3;
-        payload.type='contact';
+        var contactObj = {
+            contactId:contact.accountId,
+            productId:contact.productId,
+            status:3
+        }
+        var payload = {
+            pid:contact.productId,
+            cid:contact.accountId,
+            t:'contact',
+            d: JSON.stringify(contactObj)
+        }
         Account.isOnline(contact.contactId)
         .then(function(response){
-            socketSend(response.isOnline,response.socketId,response.deviceToken,payload);
             d.resolve();
+            socketSend(contact.contactId,response.isOnline,response.socketId,response.deviceToken,payload);            
         }).catch(function(error){d.reject(error)});
         return d.promise;
     }).then(function(response){res.json({'contactId':contact.contactId,'productId':contact.productId})})
@@ -388,14 +404,26 @@ app.post('/deleteContact', function(req, res) {
     .then(function(status){
         debug("before sending payload %s", status);
         var d = Q.defer();
-        var payload = contact;
-        payload.status=status;
-        payload.type='contact';
-        Account.isOnline(contact.contactId)
-        .then(function(response){
-            socketSend(response.isOnline,response.socketId,response.deviceToken,payload);
+        if(status==-1){//user 2 has already deleted user 1
             d.resolve();
-        }).catch(function(error){d.resolve();});
+        } else {
+            var contactObj = {
+                contactId:contact.accountId,
+                productId:contact.productId,
+                status:status
+            }
+            var payload = {
+                pid:contact.productId,
+                cid:contact.accountId,
+                t:'contact',
+                d: JSON.stringify(contactObj)
+            }
+            Account.isOnline(contact.contactId)
+            .then(function(response){
+                socketSend(contact.contactId,response.isOnline,response.socketId,response.deviceToken,payload);
+                d.resolve();
+            }).catch(function(error){d.resolve();});
+        }
         return d.promise;
     }).then(function(response){res.json({'contactId':contact.contactId,'productId':contact.productId})})
     .catch(function(error){res.json(error)});    
@@ -409,24 +437,26 @@ app.use('/deliveryStatus', expressJwt({secret: secret.key, getToken: function(re
 app.post('/deliveryStatus', function(req, res) {
     debug('Router:DeliveryStatus');
     var input = req.body;
-    if(!(input.productId && input.contactId && input.messageId && input.status)) {
-        var response = {error:"Product Id or Contact Id or Message Id not in request",errorCode:"ROU111"};
+    if(!(input.pid && input.cid && input.status)) {
+        var response = {error:"Product Id or Contact Id or status not in request",errorCode:"ROU111"};
         res.json(response);
         return;
     }
-    if(input.contactId == req.user.mobile) {
+    if(input.cid == req.user.mobile) {
         var response = {error:"Cannot send Router to same user",errorCode:"ROU112"};
         res.json(response);
         return;
     }
     var payload = {
-        messageId : input.messageId,
-        status: input.status,
-        type : "deliveryStatus"
+        pid:input.pid,
+        cid:req.user.mobile,
+        mid:input.mid,
+        d:input.status, //status is transient in client
+        t:"deliveryStatus"
     }
-    Account.isOnline(input.contactId)
+    Account.isOnline(input.cid)
     .then(function(response){
-        socketSend(response.isOnline,response.socketId,response.deviceToken,payload);
+        socketSend(input.cid,response.isOnline,response.socketId,response.deviceToken,payload);
         res.json({"result":"success"});       
     }).catch(function(error){res.json(error)});
 });
@@ -443,10 +473,20 @@ app.get('/dashboard', function(req, res) {
         var d = Q.defer();
         AccountProductContact.getAccountProductContacts(req.user.mobile)
         .then(function(contacts){
-            var response = {
-                'contacts':contacts
-            };
-            d.resolve(response);
+            MessageHistory.getAll(req.user.mobile)
+            .then(function(messages){
+                var response = {
+                    'contacts':contacts,
+                    'messages':messages
+                };
+                MessageHistory.delete(req.user.mobile);
+                d.resolve(response);    
+            }).catch(function(err){
+                var response = {
+                    'contacts':contacts
+                };
+                d.resolve(response);
+            });
         }).catch(function(err){d.reject(err)});
         return d.promise;
     }).then(function(response){res.json(response)})
@@ -485,8 +525,6 @@ app.use('/profile', expressJwt({secret: secret.key, getToken: function(req){
 app.post('/profile', function (req, res) {
     debug('Profile', 'Router', req.body);
     var input = req.body;
-    var waitTill = new Date(new Date().getTime() + 2 * 1000);
-    while(waitTill > new Date()){}
     Account.updateDetails(req.user.mobile, input)
     .then(function(response){
         var d = Q.defer();
@@ -495,5 +533,17 @@ app.post('/profile', function (req, res) {
         .catch(function(err){d.reject(err)});
         return d.promise;
     }).then(function(response){res.json({'result':'success'})})
+    .catch(function(error){res.json(error)});
+});
+
+app.use('/socketId', expressJwt({secret: secret.key, getToken: function(req){
+    var token = null || req.body.token || req.query.token || req.headers['x-access-token'];
+    return token;
+}}));
+
+app.post('/socketId', function (req, res) {
+    debug('socketId', 'Router', req.body);
+    Account.updateSocketId(req.user.mobile, 123)
+    .then(function(response){res.json({'result':'success'})})
     .catch(function(error){res.json(error)});
 });

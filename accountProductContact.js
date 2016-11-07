@@ -59,7 +59,7 @@ var AccountProductContact = database.define('account_product_contact', {
   freezeTableName: true
 });
 
-AccountProductContact.sync();
+AccountProductContact.sync({force:true});
 
 var AccountProductContacts = function(){};
 
@@ -116,7 +116,7 @@ AccountProductContacts.prototype.addContact = function(user1, user2, contact){
 AccountProductContacts.prototype.getAccountProductContacts = function(accountId){
     debug('AccountProductContacts:GetAccountProductContacts: %s', accountId);
     var d = Q.defer();
-    AccountProductContact.findAll({ where: { accountId: accountId } }).then(function(contacts) {
+    AccountProductContact.findAll({ where: { accountId: accountId }, order: [['updatedAt', 'DESC']] }).then(function(contacts) {
         if(!contacts) {
             contacts = []
         }
@@ -218,7 +218,18 @@ AccountProductContacts.prototype.deleteContact = function(accountId, productId, 
                 debug('AccountProductContacts.DeleteContact : error updating contact %s', err);
                 d.reject({'error':'AccountProductContacts.DeleteContact','errorCode':'CNT113'});
             });
-        }).catch(function(err){d.reject({'error':'AccountProductContacts.DeleteContact','errorCode':'CNT114'});});
+        }).catch(function(err){
+            debug('user 2 contact does not exist. before deleting user 1 contact');
+            AccountProductContact.destroy({where: {accountId:accountId, productId:productId, contactId:contactId}})
+            .then(function() {
+                debug('AccountProductContacts.DeleteContact : user 1 contact deleted');
+                var status = -1;
+                d.resolve(status);              
+            }).catch(function(err){
+                debug('AccountProductContacts.DeleteContact : user 1 contact failed to delete', err);
+                d.reject({'error':'AccountProductContacts.deleteContact','errorCode':'CNT112'});           
+            });
+        });
     }).catch(function(err){d.reject({'error':'AccountProductContacts.DeleteContact','errorCode':'CNT115'});});
     return d.promise;    
 };
@@ -322,6 +333,19 @@ AccountProductContacts.prototype.updateDetails = function(contactId, input){
     }).catch(function(){
         debug('Error AccountProductContact.update', 'AccountProductContacts:UpdateDetails');
         d.reject({'error':'AccountProductContact.update','errorCode':'CNT109'});
+    });         
+    return d.promise;
+};
+
+AccountProductContacts.prototype.ping = function(contactId){
+    debug('AccountProductContacts:ping: %s:', contactId);
+    var d = Q.defer();
+    AccountProductContact.update({}, {where:{contactId:contactId}}).then(function(){
+        debug('Success AccountProductContact.ping');
+        d.resolve();
+    }).catch(function(){
+        debug('Error AccountProductContact.ping');
+        d.reject();
     });         
     return d.promise;
 };

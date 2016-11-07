@@ -1,6 +1,6 @@
 var GCM = require('node-gcm-ccs');
 
-var gcm = GCM('640723155266', 'AIzaSyC6jFXGk50i1dEfP0GJn5exE29j6z8O4h0');
+var gcm = GCM('103830185013', 'AIzaSyAi9mBNTqpdhgeTJOHpVT90r5aBTNobYwQ');
 
 
 gcm.on('message', function(messageId, from, category, data) {

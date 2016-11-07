@@ -10,7 +10,7 @@ var Sms = function(){};
 Sms.prototype.send = function(account) {
     debug('SMS:Send:'+JSON.stringify(account));
     var d = Q.defer();
-    /*var data = "username=wtjose@gmail.com&hash=8be293b97b1f2e41adbf4c2257882fe024354f85"+
+    var data = "username=wtjose@gmail.com&hash=8be293b97b1f2e41adbf4c2257882fe024354f85"+
                "&message="+account.otp+" is the OTP to access your Chirpee account. Welcome to Chirpee!"+
                "&sender=CHIRPE&numbers="+account.mobile;
 
@@ -22,8 +22,8 @@ Sms.prototype.send = function(account) {
             debug('SMS:Send  error: %s', error);
             d.reject(error);
         }
-    });*/
-    d.resolve({});
+    });
+    //d.resolve({});
     return d.promise;
 };
 

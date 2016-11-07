@@ -61,7 +61,7 @@ var Account = database.define('account', {
 });
 
 //This will create the table in database
-Account.sync().then(function () {  
+Account.sync({force:true}).then(function () {  
 });
 
 var Accounts = function(){};

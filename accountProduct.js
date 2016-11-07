@@ -22,7 +22,7 @@ var AccountProduct = database.define('account_product', {
   freezeTableName: true
 });
 
-AccountProduct.sync();
+AccountProduct.sync({force:true});
 
 var AccountProducts = function(){};
 

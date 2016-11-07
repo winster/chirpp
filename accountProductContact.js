@@ -59,7 +59,7 @@ var AccountProductContact = database.define('account_product_contact', {
   freezeTableName: true
 });
 
-AccountProductContact.sync();
+AccountProductContact.sync({force:true});
 
 var AccountProductContacts = function(){};
 

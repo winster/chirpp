@@ -35,7 +35,7 @@ var MessageHistory = database.define('message_history', {
   timestamps: true
 });
 
-MessageHistory.sync({force:true});
+MessageHistory.sync();
 
 var Messages = function(){};
 
